@@ -1,0 +1,16 @@
+# ⚠️ API keys — KABHI GitHub par upload mat karo!
+.env
+
+# Generated reports & memory (personal data)
+reports/
+
+# Python junk
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Streamlit / OS
+.streamlit/secrets.toml
+.DS_Store
