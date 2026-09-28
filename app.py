@@ -100,6 +100,7 @@ with st.sidebar:
         "gemini": f"Gemini ×{n_gem} key pool" if n_gem > 1 else "Gemini",
         "nvidia": "NVIDIA Nemotron 550B",
         "mistral": "Mistral Ministral",
+        "groq": "Groq GPT-OSS 120B",
         "openrouter": "OpenRouter backup",
     }
     rows = ""
@@ -141,7 +142,7 @@ st.markdown("<h1 class='big-title'>📈 TradingAgents India</h1>", unsafe_allow_
 st.markdown(
     "<p class='sub'>Stock ka naam dalo — <b>4 Analysts</b> + 🐂🐻 debate + "
     "⚔️ <b>Multi-Model Battle</b> + Risk Team + Portfolio Manager = poori "
-    "research report. <b>100% free</b> tier pe (Gemini · NVIDIA · Mistral · OpenRouter).</p>",
+    "research report. <b>100% free</b> tier pe (Gemini · NVIDIA · Mistral · Groq · OpenRouter).</p>",
     unsafe_allow_html=True)
 
 c1, c2, c3 = st.columns([2.4, 1, 1.1])

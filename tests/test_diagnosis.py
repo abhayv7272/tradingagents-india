@@ -1185,6 +1185,30 @@ def static_app_compiles():
 
 
 @test
+def static_sidebar_covers_all_live_providers():
+    """Sidebar 'AI Model Keys' list har live provider dikhaye.
+    (Regression guard: Groq badge isliye nahi dikha tha kyunki hints dict mein
+    groq entry hi missing thi — badge ka code theek tha par list mein hi nahi tha.)"""
+    import ast as _ast
+    src = (Path(__file__).resolve().parent.parent / "app.py").read_text()
+    tree = _ast.parse(src)
+    hints = None
+    for node in _ast.walk(tree):
+        if (isinstance(node, _ast.Assign)
+                and any(isinstance(t, _ast.Name) and t.id == "hints"
+                        for t in node.targets)
+                and isinstance(node.value, _ast.Dict)):
+            hints = [k.value for k in node.value.keys
+                     if isinstance(k, _ast.Constant)]   # sirf keys — values mein f-string/ternary ho sakte hain
+    assert hints is not None, "sidebar hints dict app.py mein nahi mila"
+    live = {"gemini", "nvidia", "mistral", "groq", "openrouter"}
+    missing = live - set(hints)
+    assert not missing, f"sidebar badge list mein provider missing: {missing}"
+    for p in live:
+        assert f'"{p}"' in src, f"PROVIDER_BADGE map mein {p} nahi"
+
+
+@test
 def static_run_compiles():
     src = (Path(__file__).resolve().parent.parent / "run.py").read_text()
     compile(src, "run.py", "exec")
