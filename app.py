@@ -181,7 +181,12 @@ if run_btn and ticker_in:
             # NOTE: called from worker threads — only touch the plain list,
             # never st.* from here (Streamlit is not thread-safe).
             icon = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(ev["status"], "▶️")
-            events.append(f"{icon} [{ev['time']}] <b>{ev['stage'].upper()}</b> — {ev['detail']}")
+            # This list is later rendered with unsafe_allow_html; all external/API
+            # strings must be escaped before entering it.
+            events.append(
+                f"{icon} [{_e(ev['time'])}] <b>{_e(str(ev['stage']).upper())}</b> — "
+                f"{_e(ev['detail'])}"
+            )
 
         result_holder: dict = {}
 
@@ -252,6 +257,11 @@ if res:
     if res.get("mock"):
         st.info("🎮 **DEMO run** — data real hai, AI text mock hai. "
                 "Real battle ke liye keys + Demo Mode off karo.")
+    dq = res.get("data_quality") or {}
+    if dq.get("score", 100) < 80:
+        st.warning(f"🔌 Evidence quality: **{dq.get('score', '—')}/100 "
+                   f"({dq.get('level', '—')})** — "
+                   + "; ".join((dq.get("issues") or [])[:4]))
 
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Entry", (dec.get("entry_zone") or "—")[:22])

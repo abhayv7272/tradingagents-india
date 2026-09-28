@@ -6,7 +6,9 @@ Replaces the original repo's Alpha Vantage / SEC EDGAR (US-only) sources.
 from __future__ import annotations
 
 import math
+from datetime import datetime
 
+import pandas as pd
 import yfinance as yf
 
 from .market import inr
@@ -31,6 +33,42 @@ def _r(v, nd=2, suffix=""):
     if _m.isnan(v) or _m.isinf(v):
         return "—"
     return f"{v:.{nd}f}{suffix}"
+
+
+def _first_valid(*values):
+    """First non-null scalar; unlike ``a or b``, NaN does not win."""
+    for value in values:
+        if value is None:
+            continue
+        try:
+            if pd.isna(value):
+                continue
+        except (TypeError, ValueError):
+            continue
+        return value
+    return None
+
+
+def _asof_statement(stmt, trade_date: str | None):
+    """Exclude fiscal periods ending after the requested analysis date.
+
+    This is only a partial point-in-time guard: Yahoo does not expose the filing
+    publication timestamp, so an older period may still have been published later.
+    """
+    if stmt is None or stmt.empty or not trade_date:
+        return stmt
+    try:
+        asof = pd.Timestamp(datetime.strptime(trade_date, "%Y-%m-%d").date())
+        keep = []
+        for col in stmt.columns:
+            try:
+                if pd.Timestamp(col).tz_localize(None) <= asof:
+                    keep.append(col)
+            except (TypeError, ValueError):
+                continue
+        return stmt.loc[:, keep]
+    except (TypeError, ValueError):
+        return stmt
 
 
 def _row(stmt, name: str, idx: int = 0):
@@ -88,10 +126,23 @@ def _div_yield(info: dict) -> float | None:
 def get_fundamentals_data(ticker: str, trade_date: str | None = None) -> dict:
     """Return a compact fundamentals text block + dict of key figures."""
     t = yf.Ticker(ticker)
-    inc = t.income_stmt
-    bal = t.balance_sheet
-    cf = t.cashflow
-    info = t.info or {}
+    inc = _asof_statement(t.income_stmt, trade_date)
+    bal = _asof_statement(t.balance_sheet, trade_date)
+    cf = _asof_statement(t.cashflow, trade_date)
+    try:
+        info = t.info or {}
+    except Exception:
+        info = {}
+
+    is_historical = False
+    if trade_date:
+        try:
+            is_historical = datetime.strptime(trade_date, "%Y-%m-%d").date() < datetime.now().date()
+        except ValueError:
+            pass
+    # Yahoo quote-summary and Screener ratios are latest snapshots. Never mix
+    # them into a historical report as though they existed on the analysis date.
+    market_info = {} if is_historical else info
 
     def cols(stmt):
         return [c.year if hasattr(c, "year") else str(c)[:4] for c in stmt.columns] if stmt is not None and not stmt.empty else []
@@ -99,19 +150,22 @@ def get_fundamentals_data(ticker: str, trade_date: str | None = None) -> dict:
     years = cols(inc) or cols(bal) or []
 
     revenue = _row(inc, "Total Revenue")
-    ebitda = _row(inc, "Normalized EBITDA") or _row(inc, "EBITDA")
+    ebitda = _first_valid(_row(inc, "Normalized EBITDA"), _row(inc, "EBITDA"))
     op_income = _row(inc, "Operating Income")
     net_income = _row(inc, "Net Income")
     eps = _row(inc, "Diluted EPS")
 
     total_assets = _row(bal, "Total Assets")
     total_debt = _row(bal, "Total Debt")
-    equity = _row(bal, "Stockholders Equity") or _row(bal, "Total Stockholder Equity")
-    cash = _row(bal, "Cash And Cash Equivalents") or _row(bal, "Cash Cash Equivalents And Short Term Investments")
+    equity = _first_valid(_row(bal, "Stockholders Equity"),
+                          _row(bal, "Total Stockholder Equity"))
+    cash = _first_valid(_row(bal, "Cash And Cash Equivalents"),
+                        _row(bal, "Cash Cash Equivalents And Short Term Investments"))
     current_assets = _row(bal, "Current Assets")
     current_liab = _row(bal, "Current Liabilities")
 
-    ocf = _row(cf, "Operating Cash Flow") or _row(cf, "Total Cash From Operating Activities")
+    ocf = _first_valid(_row(cf, "Operating Cash Flow"),
+                       _row(cf, "Total Cash From Operating Activities"))
     capex = _row(cf, "Capital Expenditure")
     fcf = (ocf + capex) if (ocf is not None and capex is not None) else None
     buyback = _row(cf, "Repurchase Of Capital Stock")
@@ -124,10 +178,24 @@ def get_fundamentals_data(ticker: str, trade_date: str | None = None) -> dict:
     roa = (net_income / total_assets * 100) if (net_income is not None and total_assets not in (None, 0)) else None
     net_margin = (net_income / revenue * 100) if (net_income is not None and revenue not in (None, 0)) else None
     op_margin = (op_income / revenue * 100) if (op_income is not None and revenue not in (None, 0)) else None
-    mcap = info.get("marketCap")
+    mcap = market_info.get("marketCap")
+
+    historical_note = ""
+    if is_historical:
+        historical_note = (
+            "\n⚠️ HISTORICAL FUNDAMENTALS LIMITATION: statement periods after the "
+            "analysis date were removed, but Yahoo does not provide as-filed/publication "
+            "timestamps. Current quote ratios and Screener snapshot are SUPPRESSED to avoid "
+            "look-ahead leakage; remaining statements are not guaranteed filing-time PIT.\n")
+    sector = str(info.get("sector") or "")
+    bank_note = ""
+    if "financial" in sector.lower() or "bank" in str(info.get("industry") or "").lower():
+        bank_note = ("\nBANK/NBFC NOTE: Debt-to-equity, current ratio and generic FCF are not "
+                     "comparable to industrial companies. Prefer NIM, GNPA/NNPA, PCR, CAR/CET1, "
+                     "CASA, credit cost and loan/deposit growth from exchange filings.\n")
 
     block = f"""FUNDAMENTAL DATA — {ticker} | FY years (newest first): {years[:4]}
-(Values are latest fiscal year unless noted; ₹ in Indian units)
+(Values are latest available fiscal year unless noted; ₹ in Indian units){historical_note}{bank_note}
 
 INCOME STATEMENT (latest FY):
 - Total Revenue: {_fmt_millions(revenue)}  (YoY growth: {_growth(inc, 'Total Revenue')})
@@ -148,11 +216,11 @@ CASH FLOW (latest FY):
 - Buybacks: {buyback and _fmt_millions(buyback)} | Dividends Paid: {dividends and _fmt_millions(dividends)}
 
 MARKET SNAPSHOT:
-- Market Cap: {inr(mcap) if mcap else '—'} | P/E (TTM): {_r(info.get('trailingPE'))} | Forward P/E: {_r(info.get('forwardPE'))}
-- P/B: {_r(info.get('priceToBook'))} | Dividend Yield: {_r(_div_yield(info), 2, '%')}
-- ROE: {_r(roe, 1, '%')} | ROA: {_r(roa, 1, '%')} | Beta (global/S&P, indicative): {_r(info.get('beta'))}
+- Market Cap: {inr(mcap) if mcap else '—'} | P/E (TTM): {_r(market_info.get('trailingPE'))} | Forward P/E: {_r(market_info.get('forwardPE'))}
+- P/B: {_r(market_info.get('priceToBook'))} | Dividend Yield: {_r(_div_yield(market_info), 2, '%')}
+- ROE: {_r(roe, 1, '%')} | ROA: {_r(roa, 1, '%')} | Beta (global/S&P, indicative): {_r(market_info.get('beta'))}
 - Sector: {info.get('sector') or '—'} | Industry: {info.get('industry') or '—'}
-- Shares Out: {info.get("sharesOutstanding") and f"{info["sharesOutstanding"] / 1e7:.2f} Cr shares" or "—"}
+- Shares Out: {f'{market_info["sharesOutstanding"] / 1e7:.2f} Cr shares' if market_info.get('sharesOutstanding') else '—'}
 
 NOTE: Financial statement data is annual (Indian FY ends March). Verify promoter
 shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't carry them."""
@@ -161,11 +229,11 @@ shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't c
     screener, screener_note = None, ""
     try:
         from .sources import get_screener_fundamentals, screener_text_block
-        screener = get_screener_fundamentals(
-            ticker, info.get("shortName") or info.get("longName"), trade_date)
+        screener = (None if is_historical else get_screener_fundamentals(
+            ticker, info.get("shortName") or info.get("longName"), trade_date))
         if screener:
             block += screener_text_block(screener)
-            yf_pe, sc_pe = info.get("trailingPE"), screener.get("pe")
+            yf_pe, sc_pe = market_info.get("trailingPE"), screener.get("pe")
             if yf_pe and sc_pe:
                 d = abs(float(yf_pe) - float(sc_pe)) / max(float(sc_pe), 0.01) * 100
                 tag = ("⚠️ P/E CONFLICT >15% — Yahoo vs Screener numbers alag, "
@@ -181,7 +249,7 @@ shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't c
         "fundamentals_block": block,
         "key": {
             "revenue": revenue, "net_income": net_income, "market_cap": mcap,
-            "pe": info.get("trailingPE"), "pb": info.get("priceToBook"),
+            "pe": market_info.get("trailingPE"), "pb": market_info.get("priceToBook"),
             "roe": roe, "de_ratio": de_ratio, "fcf": fcf,
         },
         "screener": screener, "screener_note": screener_note,

@@ -32,8 +32,11 @@ INDIA_MACRO_QUERIES = [
 ]
 
 
-def _fetch_rss(query: str, when: str = "7d", limit: int = 10) -> list[dict]:
-    url = (f"https://news.google.com/rss/search?q={quote_plus(query)}+when:{when}"
+def _fetch_rss(query: str, when: str = "7d", limit: int = 10,
+               after: str | None = None, before: str | None = None) -> list[dict]:
+    window = (f"+after:{after}+before:{before}" if after and before
+              else f"+when:{when}")
+    url = (f"https://news.google.com/rss/search?q={quote_plus(query)}{window}"
            f"&hl=en-IN&gl=IN&ceid=IN:en")
     try:
         req = urllib.request.Request(url, headers={"User-Agent": _UA})
@@ -146,18 +149,20 @@ def _company_news_window(company_name: str, limit: int, after: str, before: str)
 def get_india_macro_news(limit: int = 12, trade_date: str | None = None) -> dict:
     """India macro/regulator/market news — replaces FRED (US) from the original."""
     when = "7d"
+    after = before = None
     if trade_date:
         try:
             d = datetime.strptime(trade_date, "%Y-%m-%d")
             if (datetime.now() - d).days > 35:
-                when = None
+                after = (d - timedelta(days=10)).strftime("%Y-%m-%d")
+                before = (d + timedelta(days=1)).strftime("%Y-%m-%d")
         except ValueError:
             pass
 
     items: list[dict] = []
     per_q = max(3, limit // len(INDIA_MACRO_QUERIES))
     for q in INDIA_MACRO_QUERIES:
-        got = _fetch_rss(q, when=when or "30d", limit=per_q)
+        got = _fetch_rss(q, when=when, limit=per_q, after=after, before=before)
         items += got
     items = _dedupe(items)[:limit]
     if not items:
@@ -165,6 +170,7 @@ def get_india_macro_news(limit: int = 12, trade_date: str | None = None) -> dict
     else:
         lines = [f"- [{_fmt_date(it['date'])}] {it['source']}: {_clean_title(it['title'])}"
                  for it in items]
-        block = ("INDIA MACRO / MARKET NEWS (last 7 days) — RBI, inflation, SEBI, "
+        period = f"window {after} to {before}" if after else "last 7 days"
+        block = (f"INDIA MACRO / MARKET NEWS ({period}) — RBI, inflation, SEBI, "
                  "FIIs, crude, rupee:\n" + "\n".join(lines))
     return {"macro_news_block": block, "items": items}

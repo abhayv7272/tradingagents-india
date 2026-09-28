@@ -145,7 +145,7 @@ Microsoft Qlib ke Alpha158 approach se inspired deterministic layer (v1.2, Sep 2
 
 Retrain: `python3 scripts/train_ml_model.py` (monthly recommended; IC < 0.01 → model card auto-hide)
 Backtest: `python3 tests/backtest_quant.py` · POC: `tests/qlib_poc.py`
-Deep diagnosis: `python tests/test_diagnosis.py` — **96 tests** (lookahead-leak guard, ML determinism, regime flat/NaN guards, clamp/lock matrix, PM parse-retry wiring, report regime rows)
+Deep diagnosis: `python tests/test_diagnosis.py` — **97 tests** (lookahead-leak guard, ML determinism, regime flat/NaN guards, clamp/lock matrix, PM parse-retry wiring, report regime rows)
 
 ## 🛡️ TradeHive Layer (hard discipline — Handshakeworm/TradeHive-TradingAgents se inspired)
 
@@ -177,6 +177,13 @@ kar jo aur mila:
 - **Bear researcher ko EQUAL evidence structure** — pehle sirf bull mein tha
 - **REGIME LOCK** — clamp ke baad BUY-0% inconsistent hota tha; ab decision HOLD/WAIT
   lock hota hai transparent note ke saath (TradeHive ka "clamp ke baad action re-derive")
+- **Deterministic data-quality score (0-100)** — history/freshness/source agreement/
+  fundamentals/news/macro/sentiment coverage; weak/stale evidence confidence, size aur
+  action ko code se constrain karta hai
+- **Code-level trade guard** — absolute ₹ entry/target/stop parse, BUY level direction,
+  minimum 1:1.5 R:R, max 1% capital-at-risk sizing; invalid economics BUY ko HOLD banata hai
+- **Historical leak suppression** — old-date reports mein current Yahoo valuation,
+  Screener snapshot, live NSE quote aur current earnings calendar inject nahi hote
 - **Volume-profile position structure** (deterministic) — kahan volume concentrated hai,
   overhead supply vs support-below, heaviest zones (S/R), new-highs-thin-volume /
   selling-exhaustion flags
@@ -190,12 +197,14 @@ kar jo aur mila:
 - **Negation filter** — `key_risks` list se "NOT FOUND"/"None"/"N/A" entries drop
   (TradeHive `filter_reversal_signals` ka adaptation)
 
+Bands below are **% of total portfolio capital** (single-stock exposure), not % of a planned trade:
+
 | Regime | Band | |
-|---|---|---|
-| confirmed_uptrend | 75-100% | full position |
-| early_uptrend | 30-60% | probe |
-| consolidation | 0-15% | watch |
-| topping | 20-40% | trim |
-| early_downtrend | 0-10% | retreat |
-| **confirmed_downtrend** | **0%** | **hard lock** |
-| bottoming | 5-20% | small probe |
+|---|---:|---|
+| confirmed_uptrend | 10-20% | normal/full single-stock allocation |
+| early_uptrend | 5-10% | starter allocation |
+| consolidation | 0-5% | watch / small allocation |
+| topping | 0-5% | avoid fresh entry / trim |
+| early_downtrend | 0-3% | capital preservation |
+| **confirmed_downtrend** | **0%** | **hard lock on fresh entry** |
+| bottoming | 0-5% | small probe |

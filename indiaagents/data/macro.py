@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timedelta
 
 import requests
 import yfinance as yf
@@ -24,9 +25,20 @@ FRED_SERIES = [
 ]
 
 
-def _snap(ticker: str) -> dict | None:
+def _snap(ticker: str, trade_date: str | None = None) -> dict | None:
     try:
-        h = yf.Ticker(ticker).history(period="1y")
+        if trade_date:
+            asof = datetime.strptime(trade_date, "%Y-%m-%d")
+            h = yf.Ticker(ticker).history(
+                start=(asof - timedelta(days=400)).strftime("%Y-%m-%d"),
+                end=(asof + timedelta(days=1)).strftime("%Y-%m-%d"),
+                auto_adjust=True,
+            )
+            if not h.empty:
+                idx = h.index.tz_localize(None) if h.index.tz is not None else h.index
+                h = h.loc[idx <= asof]
+        else:
+            h = yf.Ticker(ticker).history(period="1y", auto_adjust=True)
         if h.empty:
             return None
         c = h["Close"]
@@ -42,19 +54,19 @@ def _snap(ticker: str) -> dict | None:
         return None
 
 
-def get_fred_global_macro() -> dict:
-    """Global macro from FRED (free key) — Fed, US yields, dollar, crude.
-    These drive FII flows into India, INR, and OMC/energy stocks."""
+def get_fred_global_macro(trade_date: str | None = None) -> dict:
+    """Global macro from FRED, optionally bounded to an analysis date."""
     api_key = (os.environ.get("FRED_API_KEY") or "").strip()
     if not api_key:
-        return {"fred_block": "GLOBAL MACRO (FRED): <FRED_API_KEY not configured>"}
+        return {"fred_block": "GLOBAL MACRO (FRED): <unavailable — FRED_API_KEY not configured>"}
     rows = []
     for series_id, label in FRED_SERIES:
         try:
             r = requests.get(
                 "https://api.stlouisfed.org/fred/series/observations",
                 params={"series_id": series_id, "api_key": api_key,
-                        "file_type": "json", "sort_order": "desc", "limit": 2},
+                        "file_type": "json", "sort_order": "desc", "limit": 2,
+                        **({"observation_end": trade_date} if trade_date else {})},
                 timeout=15)
             if r.status_code != 200:
                 rows.append(f"- {label}: <unavailable>")
@@ -80,7 +92,7 @@ def get_fred_global_macro() -> dict:
     return {"fred_block": block}
 
 
-def get_market_context() -> dict:
+def get_market_context(trade_date: str | None = None) -> dict:
     syms = {
         "NIFTY 50": "^NSEI",
         "SENSEX": "^BSESN",
@@ -91,7 +103,7 @@ def get_market_context() -> dict:
     }
     rows = []
     for name, sym in syms.items():
-        s = _snap(sym)
+        s = _snap(sym, trade_date)
         if s:
             if name == "India VIX":
                 rows.append(f"- {name}: {s['last']:.2f} (1M: {s['m1']}%) — "
@@ -105,7 +117,7 @@ def get_market_context() -> dict:
         else:
             rows.append(f"- {name}: <unavailable>")
 
-    nifty = _snap("^NSEI")
+    nifty = _snap("^NSEI", trade_date)
     regime = ""
     if nifty:
         if (nifty["from_high"] or 0) > -3:
@@ -115,6 +127,7 @@ def get_market_context() -> dict:
         else:
             regime = "NIFTY mid-range mein hai — neutral market regime."
 
-    block = ("INDIAN MARKET CONTEXT (aaj ka):\n" + "\n".join(rows) +
+    label = f"as of {trade_date}" if trade_date else "latest available"
+    block = (f"INDIAN MARKET CONTEXT ({label}):\n" + "\n".join(rows) +
              f"\nRead: {regime}")
     return {"market_context_block": block, "nifty": nifty}
