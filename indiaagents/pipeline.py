@@ -133,6 +133,18 @@ class TradingAgentsIndiaPipeline:
             next_result = None
         P("data", f"✅ Data ready: price ₹{mkt['price']:,.2f} ({mkt['snapshot']['date']}), "
                   f"{len(news['items'])} news, {social['count']} social posts", "ok")
+        # multi-source data-quality line (sources used + cross-check)
+        src_bits = []
+        src_bits.append("Yahoo ✓" if mkt.get("data_source") == "yahoo" else
+                        f"Yahoo ✗ (fallback: {mkt.get('data_source', '?').upper()})")
+        src_bits.append("Screener.in ✓" if fund.get("screener") else "Screener.in ✗")
+        src_bits.append("NSE quote ✓" if "NSE" in (mkt.get("price_sources") or []) else "NSE quote ✗")
+        src_bits.append("AlphaVantage ✓" if "AlphaVantage" in (mkt.get("price_sources") or [])
+                        else "AlphaVantage —")
+        src_bits.append("Google News ✓" if news.get("items") else "Google News ✗")
+        src_bits.append("FRED ✓" if fred.get("fred_block") else "FRED ✗")
+        data_sources_text = " | ".join(src_bits)
+        P("data", f"🔌 Data sources: {data_sources_text}", "ok")
 
         price = mkt["price"]
         company_block = (
@@ -389,6 +401,12 @@ class TradingAgentsIndiaPipeline:
             "models": self.engine.provider_models(), "stats": self.engine.stats.by_provider(),
             "settings": self.settings.as_dict(), "mock": self.settings.mock_llm,
             "progress_events": self.progress.events,
+            "data_sources": {
+                "text": data_sources_text,
+                "price_sources": mkt.get("price_sources", []),
+                "data_quality": mkt.get("data_quality", ""),
+                "screener_note": fund.get("screener_note", ""),
+            },
         }
         # price chart for report + dashboard
         try:

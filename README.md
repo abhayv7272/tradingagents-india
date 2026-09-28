@@ -14,10 +14,13 @@ Stock ka naam dalo → 4 Analysts + 🐂 Bull vs 🐻 Bear debate + ⚔️ **3-M
    TUM: "RELIANCE" type karo
               │
               ▼
-┌─ DATA (free, no keys) ───────────────────────────────┐
+┌─ DATA (multi-source, 6 sources — free, no keys*) ────┐
 │ yfinance: price, indicators, financials (₹)          │
+│ Screener.in: MCap, P/E, BV, ROCE, ROE (independent)  │
+│ NSE: live quote cross-check (last/VWAP/52w)          │
+│ Alpha Vantage: OHLCV fallback (optional free key)    │
 │ Google News India: company + macro (RBI, CPI, SEBI)  │
-│ Reddit: Indian retail chatter                        │
+│ Reddit: Indian retail chatter + FRED macro (US)      │
 │ Market context: NIFTY, SENSEX, VIX, USD/INR, Brent   │
 └──────────────────────┬───────────────────────────────┘
                        ▼

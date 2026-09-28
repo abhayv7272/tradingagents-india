@@ -106,6 +106,9 @@ def build_markdown(r: dict) -> str:
     _q = r.get("quant") or {}
     qline = (f"**{_q['score']:.0f}/100** (expected 10-day move {_q.get('exp_ret_10d_pct', 0):+.2f}%, "
              f"model val IC {_q.get('val_ic', '—')})" if _q.get("score") is not None else "—")
+    _ds = r.get("data_sources") or {}
+    ds_text = _ds.get("text") or "—"
+    ds_quality = _ds.get("data_quality") or ""
     _nr = r.get("next_results")
     md = f"""# 📊 {r['name']} ({r['ticker']}) — AI Trading Desk Research Report
 
@@ -152,6 +155,7 @@ def build_markdown(r: dict) -> str:
 - **Price:** ₹{price:,.2f} (52w-high se {snap.get('from_52w_high')}% neeche, 52w-low se {snap.get('from_52w_low')}% upar)
 - **ML Quant Score:** {qline}
 - **RSI(14):** {snap.get('rsi')} · **1M:** {snap.get('ret_1m')}% · **1Y:** {snap.get('ret_1y')}%
+- **🔌 Data sources:** {ds_text}{' · ' + ds_quality if ds_quality else ''}
 
 {r['market_context_block']}
 
@@ -369,6 +373,9 @@ def build_html(r: dict) -> str:
     _reg = (r.get("decision") or {}).get("regime")
     _regband = (r.get("decision") or {}).get("regime_band")
     _q = r.get("quant") or {}
+    _ds = r.get("data_sources") or {}
+    ds_text = _ds.get("text") or "—"
+    ds_quality = _ds.get("data_quality") or ""
     if _q.get("score") is not None:
         _qs = float(_q["score"])
         _qcol = "pos" if _qs >= 60 else "neg" if _qs < 40 else ""
@@ -498,6 +505,8 @@ def build_html(r: dict) -> str:
 
 {sec('I', '📊', 'Company Snapshot & Market Context',
      f"<div class='modelnote'>Sector: {_esc(snap.get('sector') or '—')} · Industry: {_esc(snap.get('industry') or '—')}</div>"
+     + (f"<div class='modelnote'>🔌 Data sources: {_esc(ds_text)}"
+        + (f" · {_esc(ds_quality)}" if ds_quality else "") + "</div>")
      + _md(r['market_context_block']))}
 
 {sec('II', '🔍', 'Analyst Team Reports', analysts_html,

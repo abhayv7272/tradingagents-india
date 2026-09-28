@@ -157,6 +157,26 @@ MARKET SNAPSHOT:
 NOTE: Financial statement data is annual (Indian FY ends March). Verify promoter
 shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't carry them."""
 
+    # ── MULTI-SOURCE: Screener.in independent fundamentals + P/E cross-check ──
+    screener, screener_note = None, ""
+    try:
+        from .sources import get_screener_fundamentals, screener_text_block
+        screener = get_screener_fundamentals(
+            ticker, info.get("shortName") or info.get("longName"), trade_date)
+        if screener:
+            block += screener_text_block(screener)
+            yf_pe, sc_pe = info.get("trailingPE"), screener.get("pe")
+            if yf_pe and sc_pe:
+                d = abs(float(yf_pe) - float(sc_pe)) / max(float(sc_pe), 0.01) * 100
+                tag = ("⚠️ P/E CONFLICT >15% — Yahoo vs Screener numbers alag, "
+                       "dono quote karo aur conservative use karo" if d > 15
+                       else f"P/E cross-check: Yahoo {float(yf_pe):.1f} vs Screener "
+                            f"{float(sc_pe):.1f} (diff {d:.0f}% — OK)")
+                screener_note = tag
+                block += f"\n\n[{tag}]"
+    except Exception:
+        pass
+
     return {
         "fundamentals_block": block,
         "key": {
@@ -164,4 +184,5 @@ shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't c
             "pe": info.get("trailingPE"), "pb": info.get("priceToBook"),
             "roe": roe, "de_ratio": de_ratio, "fcf": fcf,
         },
+        "screener": screener, "screener_note": screener_note,
     }

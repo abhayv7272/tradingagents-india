@@ -258,15 +258,51 @@ def get_market_data(ticker: str, trade_date: str | None = None,
     end = (datetime.strptime(asof, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
     start = (datetime.strptime(asof, "%Y-%m-%d") - timedelta(days=400)).strftime("%Y-%m-%d")
     df = t.history(start=start, end=end, interval="1d", auto_adjust=True)
+    df.index = df.index.tz_localize(None) if not df.empty else df.index
+    if not df.empty:
+        # point-in-time: asof date tak hi (future leak nahi)
+        df = df[df.index <= pd.Timestamp(asof)]
+    # ── MULTI-SOURCE FALLBACK: yfinance empty/short → Alpha Vantage (BSE) ──
+    data_source = "yahoo"
+    if df.empty or len(df) < 260:
+        try:
+            from .sources import get_alpha_vantage_history
+            av = get_alpha_vantage_history(ticker)
+            if av is not None and len(av) > len(df):
+                av = av[av.index <= pd.Timestamp(asof)]
+                if len(av) > len(df):
+                    df, data_source = av, "alphavantage"
+        except Exception:
+            pass
     if df.empty:
-        raise ValueError(f"{ticker} ka price data nahi mila (yahoo).")
-    df.index = df.index.tz_localize(None)
-    # point-in-time: asof date tak hi (future leak nahi)
-    df = df[df.index <= pd.Timestamp(asof)]
+        raise ValueError(f"{ticker} ka price data nahi mila (yahoo/alphavantage dono fail).")
+    # yfinance 1.7+ kabhi-kabhi trailing NaN/partial bar deta hai (close=nan) — drop
+    df = df.dropna(subset=["Close"])
+    df = df[df["Close"] > 0]
+    if df.empty:
+        raise ValueError(f"{ticker} ka valid price data nahi mila (sab NaN bars).")
 
     close = df["Close"]
     last = float(close.iloc[-1])
     info = t.info or {}
+
+    # ── MULTI-SOURCE CROSS-CHECK: NSE + AlphaVantage live quote vs yahoo last ──
+    price_sources = [data_source if data_source != "yahoo" else "yfinance"]
+    data_quality = ""
+    try:
+        from .sources import cross_check_price, get_alpha_vantage_quote, get_nse_quote
+        others = []
+        nq = get_nse_quote(ticker)
+        if nq:
+            others.append(("NSE", nq.get("last")))
+            price_sources.append("NSE")
+        avq = get_alpha_vantage_quote(ticker)
+        if avq:
+            others.append(("AlphaVantage", avq.get("price")))
+            price_sources.append("AlphaVantage")
+        _, data_quality = cross_check_price(last, others)
+    except Exception:
+        pass
 
     # indicators
     sma50 = _sma(close, 50); sma200 = _sma(close, 200)
@@ -340,6 +376,7 @@ def get_market_data(ticker: str, trade_date: str | None = None,
 
     ind_block = f"""TECHNICAL DATA — {ticker} ({info.get('longName', ticker)}) | as of {df.index[-1].date()}
 Current price: ₹{last:,.2f} | Day change: {_pct(last, float(close.iloc[-2])) if len(close) > 1 else '—'}%
+[Data source: {data_source.upper()} | {len(df)} sessions]
 Returns: 1W: {rets['1w']}% | 1M: {rets['1m']}% | 3M: {rets['3m']}% | 6M: {rets['6m']}% | 1Y: {rets['1y']}%
 52-week High: ₹{hi52:,.2f} (price is {_pct(last, hi52)}% below) | 52-week Low: ₹{lo52:,.2f} (price is {_pct(last, lo52)}% above)
 3-month Support ≈ ₹{sup:,.2f} | Resistance ≈ ₹{res:,.2f}
@@ -373,4 +410,6 @@ Date | Open | High | Low | Close | Volume
         "from_52w_low": _pct(last, lo52), "ret_1m": rets["1m"], "ret_1y": rets["1y"],
     }
     return {"indicator_block": ind_block, "snapshot": snapshot, "df": df,
-            "close": close, "price": last, "info": info}
+            "close": close, "price": last, "info": info,
+            "data_source": data_source, "price_sources": price_sources,
+            "data_quality": data_quality}

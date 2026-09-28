@@ -138,3 +138,12 @@ CEREBRAS_API_KEY = "csk-..."
 SAMBANOVA_API_KEY = "..."
 ```
 App khud detect karke sidebar badge aur battle rotation mein shamil kar degi.
+
+## Optional: Alpha Vantage data fallback (multi-source layer)
+
+`ALPHA_VANTAGE_API_KEY` (free: alphavantage.co/support/#api-key, 25 req/day) add karne se
+jab Yahoo ka data na mile / short ho (BETA jaisi stocks) tab OHLCV fallback milta hai.
+**Bina is key ke bhi sab chalta hai** — Screener.in + NSE + Google News + FRED key-free hain:
+```toml
+ALPHA_VANTAGE_API_KEY = "YOUR_KEY"
+```
