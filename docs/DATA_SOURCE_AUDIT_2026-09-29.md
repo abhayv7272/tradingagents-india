@@ -30,6 +30,8 @@ python scripts/check_data_sources.py --ticker RELIANCE.NS --json
 
 The command never prints keys, never disables certificate checks, and exits successfully when providers are unreachable because reachability is diagnostic output rather than a core-test assertion.
 
+A separate web retrieval check on 29 September successfully opened Screener's homepage, its current Reliance consolidated page, and the search endpoint. The search response currently returns `/company/RELIANCE/consolidated/`; the adapter now canonicalizes that exact shape without generating a duplicate `/consolidated/consolidated/` request. The displayed top ratios (market cap, price, high/low, P/E, book value, dividend yield, ROCE, ROE and face value) match the offline parser fixture. This confirms the current route/payload shape, but does not override the application sandbox's direct TLS failure.
+
 ## End-to-end categories and behavior
 
 ### Price history and benchmark

@@ -88,6 +88,22 @@ def test_alpha_rate_limit_and_missing_key_are_distinct() -> None:
     assert "not-printed" not in limited.health.detail
 
 
+def test_current_screener_search_shape_is_canonicalized_safely() -> None:
+    payload = [
+        {"id": 2726, "name": "Reliance Industries Ltd",
+         "url": "/company/RELIANCE/consolidated/"},
+        {"id": 1, "name": "unsafe", "url": "https://evil.test/company/X/"},
+    ]
+    urls = sources.parse_screener_search(payload)
+    assert urls == ["https://www.screener.in/company/RELIANCE/consolidated/"]
+    variants = sources._screener_page_variants(urls[0])
+    assert variants == [
+        "https://www.screener.in/company/RELIANCE/consolidated/",
+        "https://www.screener.in/company/RELIANCE/",
+    ]
+    assert all("consolidated/consolidated" not in url for url in variants)
+
+
 def test_screener_http_rate_limit_not_reported_as_empty() -> None:
     with patch.object(sources, "_cached_get", side_effect=sources.HTTPFetchError(429)):
         result = sources.get_screener_fundamentals("XYZ.NS", with_health=True)

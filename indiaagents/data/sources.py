@@ -22,7 +22,7 @@ import re
 import tempfile
 import time
 from pathlib import Path
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import requests
 
@@ -154,6 +154,48 @@ def parse_screener_html(html_text: str) -> dict:
     return {"ratios": ratios, "about": about}
 
 
+def parse_screener_search(payload: object) -> list[str]:
+    """Return safe, canonical company URLs from Screener's search JSON.
+
+    Current search results already include ``/consolidated/`` for many stocks;
+    canonicalization avoids accidentally requesting
+    ``.../consolidated/consolidated/`` before the real page.
+    """
+    if not isinstance(payload, list):
+        return []
+    urls: list[str] = []
+    for hit in payload[:5]:
+        if not isinstance(hit, dict):
+            continue
+        raw_url = str(hit.get("url") or "").strip()
+        if not raw_url:
+            continue
+        absolute = urljoin("https://www.screener.in/", raw_url)
+        parsed = urlparse(absolute)
+        hostname = str(parsed.hostname or "").lower()
+        if parsed.scheme != "https" or not (
+            hostname == "screener.in" or hostname.endswith(".screener.in")
+        ):
+            continue
+        if not parsed.path.startswith("/company/"):
+            continue
+        canonical = f"https://www.screener.in{parsed.path.rstrip('/')}/"
+        if canonical not in urls:
+            urls.append(canonical)
+    return urls
+
+
+def _screener_page_variants(url: str) -> list[str]:
+    """Prefer the searched page, then try its consolidated/standalone peer."""
+    canonical = url.rstrip("/") + "/"
+    marker = "/consolidated/"
+    if canonical.endswith(marker):
+        alternate = canonical[:-len(marker)] + "/"
+    else:
+        alternate = canonical.rstrip("/") + marker
+    return list(dict.fromkeys((canonical, alternate)))
+
+
 def get_screener_fundamentals(ticker: str, name: str | None = None,
                               trade_date: str | None = None, *,
                               with_health: bool = False) -> dict | None | SourceResult:
@@ -173,33 +215,23 @@ def get_screener_fundamentals(ticker: str, name: str | None = None,
     if not sym:
         return done(None, health("screener", "fundamentals-crosscheck", "empty",
                                  "blank exchange symbol"))
-    candidates = [
-        f"https://www.screener.in/company/{sym}/consolidated/",
-        f"https://www.screener.in/company/{sym}/",
-    ]
+    encoded_sym = quote(sym, safe="-")
+    direct = f"https://www.screener.in/company/{encoded_sym}/"
+    candidates = _screener_page_variants(direct + "consolidated/")
     failures = []
     # Search is only a slug fallback; a failed search does not prevent direct URLs.
     if name:
         try:
-            q = quote(name.strip()[:40])
+            q = quote(name.strip()[:40], safe="")
             raw = _cached_get(
                 f"https://www.screener.in/api/company/search/?q={q}", ttl_hours=24,
             ).decode("utf-8", "ignore")
             data = json.loads(raw)
-            if not isinstance(data, list):
+            search_urls = parse_screener_search(data)
+            if not search_urls and not isinstance(data, list):
                 raise TypeError("search payload is not a list")
-            for hit in data[:3]:
-                u = (hit.get("url") or "").strip() if isinstance(hit, dict) else ""
-                if u:
-                    if not u.startswith("http"):
-                        u = "https://www.screener.in" + u
-                    parsed_url = urlparse(u)
-                    if parsed_url.scheme != "https" or not (
-                        parsed_url.hostname == "screener.in"
-                        or str(parsed_url.hostname).endswith(".screener.in")
-                    ):
-                        continue
-                    candidates += [u.rstrip("/") + "/consolidated/", u.rstrip("/") + "/"]
+            for search_url in search_urls:
+                candidates.extend(_screener_page_variants(search_url))
         except Exception as exc:  # direct candidates are still attempted
             failures.append(classify_exception(exc))
 
@@ -216,7 +248,7 @@ def get_screener_fundamentals(ticker: str, name: str | None = None,
                 continue
             out = {"ratios": parsed["ratios"], "about": parsed["about"],
                    "url": url,
-                   "slug": url.split("/company/")[1].strip("/")
+                   "slug": url.split("/company/", 1)[1].strip("/").split("/", 1)[0]
                    if "/company/" in url else sym}
             for label, key in _SCREENER_KEYS.items():
                 if label in parsed["ratios"]:
