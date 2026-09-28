@@ -113,12 +113,15 @@ def build_markdown(r: dict) -> str:
     _reg = (r.get('decision') or {}).get('regime')
     _regband = (r.get('decision') or {}).get('regime_band')
     _q = r.get("quant") or {}
-    qline = (f"**{_q['score']:.0f}/100** (expected 10-day move {_q.get('exp_ret_10d_pct', 0):+.2f}%, "
+    qline = (f"**{_q['score']:.0f}/100** (model-implied 10-day signal {_q.get('exp_ret_10d_pct', 0):+.2f}%, "
              f"model val IC {_q.get('val_ic', '—')})" if _q.get("score") is not None else "—")
     _ds = r.get("data_sources") or {}
     ds_text = _ds.get("text") or "—"
     ds_quality = _ds.get("data_quality") or ""
     _nr = r.get("next_results")
+    _dq = r.get("data_quality") or {}
+    _tv = dec.get("trade_validation") or {}
+    _rr = f"1:{_tv['rr']:.2f}" if _tv.get("rr") is not None else "unverified"
     md = f"""# 📊 {r['name']} ({r['ticker']}) — AI Trading Desk Research Report
 
 *Generated: {datetime.now(IST).strftime('%d %b %Y, %H:%M')} IST · Analysis date: {r['trade_date']} · {r['exchange']}*
@@ -138,12 +141,15 @@ def build_markdown(r: dict) -> str:
 | **Position size** | {dec.get('position_size_pct', 0)}% capital | **Timeframe** | {dec.get('timeframe', '—')} |
 | **ML Quant Score** | {qline} | **Next results** | {_nr or '—'} |
 | **Market Regime** | {_reg or '—'} | **Position band** | {_regband or '—'} |
+| **Data quality** | {_dq.get('score', '—')}/100 ({_dq.get('level', '—')}) | **Code-verified R:R** | {_rr} |
 
 **Rationale:** {dec.get('rationale', '—')}
 
 **Key risks:** {', '.join(str(k) for k in dec.get('key_risks', [])) or '—'}
 
 **⚔️ Model battle notes:** {dec.get('battle_notes', '—')}
+
+**🔌 Data-quality limitations:** {'; '.join(_dq.get('issues') or []) or 'none reported'}
 
 ---
 
@@ -385,12 +391,15 @@ def build_html(r: dict) -> str:
     _ds = r.get("data_sources") or {}
     ds_text = _ds.get("text") or "—"
     ds_quality = _ds.get("data_quality") or ""
+    _dq = r.get("data_quality") or {}
+    _tv = dec.get("trade_validation") or {}
+    _rr = f"1:{float(_tv['rr']):.2f}" if _tv.get("rr") is not None else "unverified"
     if _q.get("score") is not None:
         _qs = float(_q["score"])
         _qcol = "pos" if _qs >= 60 else "neg" if _qs < 40 else ""
         quant_kpi = (f"<div class='kpi'><div class='l'>ML Quant Score</div>"
                      f"<div class='v {_qcol}'>{_qs:.0f}/100</div>"
-                     f"<div class='s'>exp 10d {_q.get('exp_ret_10d_pct', 0):+.2f}% · IC {_q.get('val_ic', '—')}</div></div>")
+                     f"<div class='s'>model signal 10d {_q.get('exp_ret_10d_pct', 0):+.2f}% · IC {_q.get('val_ic', '—')}</div></div>")
     else:
         quant_kpi = ""
 
@@ -411,6 +420,8 @@ def build_html(r: dict) -> str:
       <div class='kpi'><div class='l'>RSI (14)</div><div class='v'>{rnd(snap.get('rsi'), 1)}</div>
         <div class='s'>{'Overbought' if (snap.get('rsi') or 50) > 70 else 'Oversold' if (snap.get('rsi') or 50) < 30 else 'Neutral'}</div></div>
       {quant_kpi}
+      <div class='kpi'><div class='l'>Data Quality</div><div class='v'>{_esc(_dq.get('score', '—'))}/100</div>
+        <div class='s'>{_esc(_dq.get('level', '—'))} · R:R {_esc(_rr)}</div></div>
       <div class='kpi'><div class='l'>Market Regime</div><div class='v'>{_esc((_reg or '—').replace('_', ' '))}</div>
         <div class='s'>position band {_esc(_regband or '—')} · hard discipline</div></div>
       <div class='kpi'><div class='l'>1M Return</div><div class='v {cls(snap.get('ret_1m'))}'>{rnd(snap.get('ret_1m'), 1)}%</div>
@@ -500,8 +511,10 @@ def build_html(r: dict) -> str:
   <h3>Why (Hinglish rationale)</h3>
   {_md(dec.get('rationale', '—'))}
   <h3>Key risks</h3><div class='risks'>{risks}</div>
-  <h3>⚔️ Model battle notes</h3>
+  <h3>⚔️ Model battle notes & deterministic guards</h3>
   {_md(dec.get('battle_notes', '—'))}
+  <h3>🔌 Data-quality limitations</h3>
+  {_md('; '.join(_dq.get('issues') or []) or 'None reported')}
 </div>
 
 <h2 class='sec'><span class='secnum'>AI</span>🤖 Model Battle Scoreboard</h2>

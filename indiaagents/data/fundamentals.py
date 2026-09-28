@@ -134,6 +134,16 @@ def get_fundamentals_data(ticker: str, trade_date: str | None = None) -> dict:
     except Exception:
         info = {}
 
+    is_historical = False
+    if trade_date:
+        try:
+            is_historical = datetime.strptime(trade_date, "%Y-%m-%d").date() < datetime.now().date()
+        except ValueError:
+            pass
+    # Yahoo quote-summary and Screener ratios are latest snapshots. Never mix
+    # them into a historical report as though they existed on the analysis date.
+    market_info = {} if is_historical else info
+
     def cols(stmt):
         return [c.year if hasattr(c, "year") else str(c)[:4] for c in stmt.columns] if stmt is not None and not stmt.empty else []
 
@@ -168,19 +178,15 @@ def get_fundamentals_data(ticker: str, trade_date: str | None = None) -> dict:
     roa = (net_income / total_assets * 100) if (net_income is not None and total_assets not in (None, 0)) else None
     net_margin = (net_income / revenue * 100) if (net_income is not None and revenue not in (None, 0)) else None
     op_margin = (op_income / revenue * 100) if (op_income is not None and revenue not in (None, 0)) else None
-    mcap = info.get("marketCap")
+    mcap = market_info.get("marketCap")
 
     historical_note = ""
-    if trade_date:
-        try:
-            if datetime.strptime(trade_date, "%Y-%m-%d").date() < datetime.now().date():
-                historical_note = (
-                    "\n⚠️ HISTORICAL FUNDAMENTALS LIMITATION: statement periods after the "
-                    "analysis date were removed, but Yahoo does not provide as-filed/publication "
-                    "timestamps and market-snapshot ratios are current. Do NOT treat this block "
-                    "as fully point-in-time or use it for leakage-free backtests.\n")
-        except ValueError:
-            pass
+    if is_historical:
+        historical_note = (
+            "\n⚠️ HISTORICAL FUNDAMENTALS LIMITATION: statement periods after the "
+            "analysis date were removed, but Yahoo does not provide as-filed/publication "
+            "timestamps. Current quote ratios and Screener snapshot are SUPPRESSED to avoid "
+            "look-ahead leakage; remaining statements are not guaranteed filing-time PIT.\n")
     sector = str(info.get("sector") or "")
     bank_note = ""
     if "financial" in sector.lower() or "bank" in str(info.get("industry") or "").lower():
@@ -210,11 +216,11 @@ CASH FLOW (latest FY):
 - Buybacks: {buyback and _fmt_millions(buyback)} | Dividends Paid: {dividends and _fmt_millions(dividends)}
 
 MARKET SNAPSHOT:
-- Market Cap: {inr(mcap) if mcap else '—'} | P/E (TTM): {_r(info.get('trailingPE'))} | Forward P/E: {_r(info.get('forwardPE'))}
-- P/B: {_r(info.get('priceToBook'))} | Dividend Yield: {_r(_div_yield(info), 2, '%')}
-- ROE: {_r(roe, 1, '%')} | ROA: {_r(roa, 1, '%')} | Beta (global/S&P, indicative): {_r(info.get('beta'))}
+- Market Cap: {inr(mcap) if mcap else '—'} | P/E (TTM): {_r(market_info.get('trailingPE'))} | Forward P/E: {_r(market_info.get('forwardPE'))}
+- P/B: {_r(market_info.get('priceToBook'))} | Dividend Yield: {_r(_div_yield(market_info), 2, '%')}
+- ROE: {_r(roe, 1, '%')} | ROA: {_r(roa, 1, '%')} | Beta (global/S&P, indicative): {_r(market_info.get('beta'))}
 - Sector: {info.get('sector') or '—'} | Industry: {info.get('industry') or '—'}
-- Shares Out: {f'{info["sharesOutstanding"] / 1e7:.2f} Cr shares' if info.get('sharesOutstanding') else '—'}
+- Shares Out: {f'{market_info["sharesOutstanding"] / 1e7:.2f} Cr shares' if market_info.get('sharesOutstanding') else '—'}
 
 NOTE: Financial statement data is annual (Indian FY ends March). Verify promoter
 shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't carry them."""
@@ -223,11 +229,11 @@ shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't c
     screener, screener_note = None, ""
     try:
         from .sources import get_screener_fundamentals, screener_text_block
-        screener = get_screener_fundamentals(
-            ticker, info.get("shortName") or info.get("longName"), trade_date)
+        screener = (None if is_historical else get_screener_fundamentals(
+            ticker, info.get("shortName") or info.get("longName"), trade_date))
         if screener:
             block += screener_text_block(screener)
-            yf_pe, sc_pe = info.get("trailingPE"), screener.get("pe")
+            yf_pe, sc_pe = market_info.get("trailingPE"), screener.get("pe")
             if yf_pe and sc_pe:
                 d = abs(float(yf_pe) - float(sc_pe)) / max(float(sc_pe), 0.01) * 100
                 tag = ("⚠️ P/E CONFLICT >15% — Yahoo vs Screener numbers alag, "
@@ -243,7 +249,7 @@ shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't c
         "fundamentals_block": block,
         "key": {
             "revenue": revenue, "net_income": net_income, "market_cap": mcap,
-            "pe": info.get("trailingPE"), "pb": info.get("priceToBook"),
+            "pe": market_info.get("trailingPE"), "pb": market_info.get("priceToBook"),
             "roe": roe, "de_ratio": de_ratio, "fcf": fcf,
         },
         "screener": screener, "screener_note": screener_note,

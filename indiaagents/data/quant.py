@@ -267,7 +267,7 @@ _model_cache: dict = {}
 
 
 def ml_score(df: pd.DataFrame) -> dict | None:
-    """Trained model se 0-100 score + expected 10-day return.
+    """Trained model se 0-100 ranking score + model-implied 10-day return.
     Model/calib missing ya error ho to None (graceful)."""
     if not _MODEL_FILE.exists() or not _CALIB_FILE.exists():
         return None
@@ -350,7 +350,7 @@ def quant_block(df: pd.DataFrame) -> str:
     if ms:
         lines.append(
             f"ML SCORE (Qlib-style model, {ms['trained']} ko train, val IC={ms['val_ic']}): "
-            f"{ms['score']:.0f}/100 | expected 10-day move: {ms['exp_ret_10d_pct']:+.2f}% "
+            f"{ms['score']:.0f}/100 | model-implied 10-day signal: {ms['exp_ret_10d_pct']:+.2f}% "
             f"(cross-section percentile — 50=average stock, 80+=strong, <30=weak)")
         lines.append(
             "ML score DETERMINISTIC hai (koi hallucination nahi). Ise evidence ke roop "

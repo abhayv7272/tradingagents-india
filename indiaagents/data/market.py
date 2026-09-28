@@ -299,22 +299,30 @@ def get_market_data(ticker: str, trade_date: str | None = None,
     except Exception:
         # Price history can work while Yahoo's quote-summary endpoint is blocked.
         info = {}
+    try:
+        is_historical = datetime.strptime(asof, "%Y-%m-%d").date() < datetime.now().date()
+    except ValueError:
+        is_historical = False
+    latest_quote_info = {} if is_historical else info
 
     # ── MULTI-SOURCE CROSS-CHECK: NSE + AlphaVantage live quote vs yahoo last ──
     price_sources = [data_source if data_source != "yahoo" else "yfinance"]
     data_quality = ""
     try:
-        from .sources import cross_check_price, get_alpha_vantage_quote, get_nse_quote
-        others = []
-        nq = get_nse_quote(ticker)
-        if nq:
-            others.append(("NSE", nq.get("last")))
-            price_sources.append("NSE")
-        avq = get_alpha_vantage_quote(ticker)
-        if avq:
-            others.append(("AlphaVantage", avq.get("price")))
-            price_sources.append("AlphaVantage")
-        _, data_quality = cross_check_price(last, others)
+        if not is_historical:
+            from .sources import cross_check_price, get_alpha_vantage_quote, get_nse_quote
+            others = []
+            nq = get_nse_quote(ticker)
+            if nq:
+                others.append(("NSE", nq.get("last")))
+                price_sources.append("NSE")
+            avq = get_alpha_vantage_quote(ticker)
+            if avq:
+                others.append(("AlphaVantage", avq.get("price")))
+                price_sources.append("AlphaVantage")
+            _, data_quality = cross_check_price(last, others)
+        else:
+            data_quality = "Historical run: current live-quote cross-check suppressed"
     except Exception:
         pass
 
@@ -418,11 +426,12 @@ Date | Open | High | Low | Close | Volume
         "price": last, "date": str(df.index[-1].date()),
         "name": info.get("longName") or info.get("shortName") or ticker,
         "sector": info.get("sector"), "industry": info.get("industry"),
-        "market_cap": info.get("marketCap"), "currency": info.get("currency", "INR"),
-        "pe": info.get("trailingPE"), "forward_pe": info.get("forwardPE"),
-        "pb": info.get("priceToBook"), "dividend_yield": info.get("dividendYield"),
+        "market_cap": latest_quote_info.get("marketCap"), "currency": info.get("currency", "INR"),
+        "pe": latest_quote_info.get("trailingPE"), "forward_pe": latest_quote_info.get("forwardPE"),
+        "pb": latest_quote_info.get("priceToBook"),
+        "dividend_yield": latest_quote_info.get("dividendYield"),
         "beta_nifty": beta_nifty,
-        "beta": info.get("beta"), "website": info.get("website"),
+        "beta": latest_quote_info.get("beta"), "website": info.get("website"),
         "rsi": round(rsi, 1), "from_52w_high": _pct(last, hi52),
         "from_52w_low": _pct(last, lo52), "ret_1m": rets["1m"], "ret_1y": rets["1y"],
     }

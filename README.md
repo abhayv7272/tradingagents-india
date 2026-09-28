@@ -177,6 +177,13 @@ kar jo aur mila:
 - **Bear researcher ko EQUAL evidence structure** — pehle sirf bull mein tha
 - **REGIME LOCK** — clamp ke baad BUY-0% inconsistent hota tha; ab decision HOLD/WAIT
   lock hota hai transparent note ke saath (TradeHive ka "clamp ke baad action re-derive")
+- **Deterministic data-quality score (0-100)** — history/freshness/source agreement/
+  fundamentals/news/macro/sentiment coverage; weak/stale evidence confidence, size aur
+  action ko code se constrain karta hai
+- **Code-level trade guard** — absolute ₹ entry/target/stop parse, BUY level direction,
+  minimum 1:1.5 R:R, max 1% capital-at-risk sizing; invalid economics BUY ko HOLD banata hai
+- **Historical leak suppression** — old-date reports mein current Yahoo valuation,
+  Screener snapshot, live NSE quote aur current earnings calendar inject nahi hote
 - **Volume-profile position structure** (deterministic) — kahan volume concentrated hai,
   overhead supply vs support-below, heaviest zones (S/R), new-highs-thin-volume /
   selling-exhaustion flags

@@ -38,6 +38,9 @@ from .agents.prompts import (
 )
 from .config import language_instruction
 from .report import build_report
+from .validation import (
+    apply_quality_guard, apply_trade_guard, assess_data_quality, quality_block,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -155,9 +158,19 @@ class TradingAgentsIndiaPipeline:
         src_bits.append("AlphaVantage ✓" if "AlphaVantage" in (mkt.get("price_sources") or [])
                         else "AlphaVantage —")
         src_bits.append("Google News ✓" if news.get("items") else "Google News ✗")
-        src_bits.append("FRED ✓" if fred.get("fred_block") else "FRED ✗")
+        _fred_text = str(fred.get("fred_block") or "").lower()
+        _fred_ok = bool(_fred_text) and "not configured" not in _fred_text and "<unavailable" not in _fred_text
+        src_bits.append("FRED ✓" if _fred_ok else "FRED ✗")
         data_sources_text = " | ".join(src_bits)
+        quality = assess_data_quality(
+            trade_date=trade_date, market=mkt, fundamentals=fund, news=news,
+            macro_news=macro_news, social=social, market_context=mctx, fred=fred,
+        )
+        quality_text = quality_block(quality)
+        quality_status = "ok" if quality["score"] >= 80 else "warn"
         P("data", f"🔌 Data sources: {data_sources_text}", "ok")
+        P("data", f"Evidence quality: {quality['score']}/100 ({quality['level']})",
+          quality_status)
 
         price = mkt["price"]
         company_block = (
@@ -165,6 +178,7 @@ class TradingAgentsIndiaPipeline:
             f"Sector: {mkt['snapshot'].get('sector') or '?'} | "
             f"Analysis date: {trade_date} | Current price: ₹{price:,.2f}"
             + (f" | Next results: ~{next_result}" if next_result else "")
+            + f"\n{quality_text}"
         )
 
         # memory ------------------------------------------------------------
@@ -387,6 +401,16 @@ class TradingAgentsIndiaPipeline:
                 P("final", f"ℹ️ PM conservative: {decision['position_size_pct']}% vs "
                            f"regime band {regime['band_lo']}-{regime['band_hi']}%", "info")
 
+            before_guard = (decision["decision"], decision["position_size_pct"],
+                            decision["confidence"])
+            decision = apply_trade_guard(decision, price)
+            decision = apply_quality_guard(decision, quality)
+            after_guard = (decision["decision"], decision["position_size_pct"],
+                           decision["confidence"])
+            if after_guard != before_guard:
+                P("final", f"🧮 Code guards: action/size/conf {before_guard} → {after_guard}",
+                  "warn")
+
         if decision is None:
             decision = {"decision": "HOLD", "confidence": 0, "rating": "Hold",
                         "rationale": "Portfolio Manager call failed — data par bharosa "
@@ -394,6 +418,11 @@ class TradingAgentsIndiaPipeline:
                         "key_risks": ["LLM call failure"], "entry_zone": "—",
                         "target": "—", "stop_loss": "—", "position_size_pct": 0,
                         "timeframe": "—", "battle_notes": "—"}
+            decision = apply_quality_guard(decision, quality)
+            decision["trade_validation"] = {
+                "verified": False, "valid": False, "rr": None, "levels": {},
+                "max_loss_pct": 1.0, "notes": ["PM unavailable"],
+            }
             P("final", "❌ PM fail — safe HOLD fallback used", "error")
 
         # 10) report ------------------------------------------------------------
@@ -407,6 +436,7 @@ class TradingAgentsIndiaPipeline:
             "trader_plan": trader_plan, "risk_views": risk_block,
             "decision": decision, "memory": past_ctx,
             "quant": qinfo, "next_results": next_result,
+            "data_quality": quality,
             "news_block": news["news_block"], "macro_news_block": macro_news["macro_news_block"],
             "social_block": social["social_block"],
             "indicator_block": mkt["indicator_block"],
@@ -421,6 +451,9 @@ class TradingAgentsIndiaPipeline:
                 "price_sources": mkt.get("price_sources", []),
                 "data_quality": mkt.get("data_quality", ""),
                 "screener_note": fund.get("screener_note", ""),
+                "quality_score": quality["score"],
+                "quality_level": quality["level"],
+                "quality_issues": quality["issues"],
             },
         }
         # price chart for report + dashboard

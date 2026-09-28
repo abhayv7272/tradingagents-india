@@ -128,6 +128,17 @@ This sandbox's outbound TLS connection to Yahoo/Google/Screener/NSE was intermit
 7. Fail closed on stale/insufficient primary data. LLM prose should never turn unavailable evidence into confidence.
 8. Add CI with offline fixtures; schedule live provider/source health checks separately.
 
+## Follow-up implementation after the audit
+
+The first P0 follow-up is now implemented as code rather than prompt advice:
+
+- **Deterministic data-quality score (0–100):** price-history coverage, bar freshness, independent-price agreement, fundamental coverage, company news, India macro, sentiment and FRED are scored separately with visible limitations.
+- **Quality guard:** stale/critical evidence forces HOLD, 0% allocation and confidence ≤35%; low evidence caps allocation/confidence; medium evidence caps confidence.
+- **Trade-plan guard:** parses absolute INR entry/target/stop, verifies `stop < entry < target`, requires R:R ≥1:1.5, and caps position so stop-loss risk is no more than 1% of total capital. Invalid BUY economics become HOLD.
+- **Historical leakage hardening:** current Yahoo valuation fields, Screener snapshots and current live-quote cross-checks are suppressed in old-date reports rather than merely warned about.
+- **UI/report transparency:** evidence score, limitations and code-verified R:R are visible in Markdown, HTML and Streamlit.
+- **Five additional offline guardrail tests** bring standard pytest coverage to **13 passed**.
+
 ## Bottom line
 
 After this patch the code compiles, the bundled model loads under its compatible dependency, historical macro leakage is substantially reduced, portfolio caps are safer, and several security/availability problems are fixed. The app is suitable as an **educational research assistant**, but its output should not be marketed as validated trading accuracy. The next highest-value milestone is a timestamped, point-in-time Indian filings dataset plus a cost-aware, survivorship-safe walk-forward backtest.
