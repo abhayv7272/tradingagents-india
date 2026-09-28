@@ -283,6 +283,7 @@ if run_btn and ticker_in:
                           state="complete", expanded=False)
         st.session_state.result = result_holder.get("result")
         st.session_state.backtest_result = None
+        st.session_state.backtest_key = None
 
 # ============================================================ result
 res = st.session_state.result
@@ -374,6 +375,15 @@ if res:
         setup_options = ["Weekly-trend breakout", "Breakout retest", "Trend pullback",
                          "Range breakout / volatility contraction", "Bottoming reversal probe"]
         selected_setups = st.multiselect("Setups (empty = all)", setup_options, key="bt_setups")
+        current_bt_key = (
+            res["ticker"], res["trade_date"], int(years), float(slippage), float(impact),
+            int(train), int(validation), int(test), int(embargo), tuple(selected_setups),
+            float((res.get("portfolio_inputs") or {}).get("portfolio_capital", 100000)),
+            float((res.get("portfolio_inputs") or {}).get("max_risk_pct", 1.0)),
+            float((res.get("portfolio_inputs") or {}).get("max_single_stock_pct", 20.0)),
+            str((res.get("portfolio_inputs") or {}).get("risk_profile", "balanced")),
+            str((res.get("portfolio_inputs") or {}).get("horizon", "positional")),
+        )
         run_backtest = st.button("▶ Run explicit walk-forward backtest", type="primary", key="run_bt")
         if run_backtest:
             try:
@@ -389,6 +399,7 @@ if res:
                         tuple(selected_setups), res.get("snapshot", {}).get("sector"),
                     )
                 st.session_state.backtest_result = bt
+                st.session_state.backtest_key = current_bt_key
                 res["backtest"] = bt
                 metrics, gate = bt["metrics"], bt["acceptance"]
                 res["deterministic"]["evidence"] = {
@@ -404,7 +415,14 @@ if res:
                 res["paths"] = build_report(res)
             except Exception as exc:
                 st.error(f"BACKTEST NOT AVAILABLE: {exc}")
-        bt = st.session_state.get("backtest_result")
+        stored_bt = st.session_state.get("backtest_result")
+        stored_key = st.session_state.get("backtest_key")
+        if stored_bt is not None and stored_key != current_bt_key:
+            st.warning(
+                "Backtest settings change ho gaye hain. Purana result new settings ke "
+                "naam par show nahi kiya ja raha; explicit button dobara dabayein."
+            )
+        bt = stored_bt if stored_key == current_bt_key else None
         if bt:
             metrics, gate = bt["metrics"], bt["acceptance"]
             st.success(gate["status"]) if gate["validated_edge"] else st.warning(gate["status"])

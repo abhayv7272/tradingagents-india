@@ -122,10 +122,12 @@ Default universe-level criteria all must pass:
 - net expectancy greater than 0R after costs;
 - profit factor at least 1.20;
 - max drawdown no worse than 25%;
-- at least three stocks;
-- at least two market regimes represented.
+- at least three stocks with supplied per-stock OOS trade counts;
+- no one stock contributing more than 70% of OOS trades;
+- at least two market regimes represented;
+- no one regime contributing more than 80% of OOS trades.
 
-Failure returns `NO VALIDATED EDGE` and fresh action remains `WAIT`/`REVIEW`. A single-symbol UI run is labelled **stock-specific occurrences only** and cannot pass universe diversity, even if its own statistics look good.
+A bare caller-supplied stock count is not accepted as diversity evidence; per-stock and per-regime counts must reconcile exactly to the reported OOS sample before concentration checks can pass. Failure returns `NO VALIDATED EDGE` and fresh action remains `WAIT`/`REVIEW`. A single-symbol UI run is labelled **stock-specific occurrences only** and cannot pass universe diversity, even if its own statistics look good.
 
 ## 11. Data integrity limitations
 

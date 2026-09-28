@@ -1,18 +1,23 @@
 """Event-driven, next-session, bar-by-bar long-only execution simulator."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, replace
-from typing import Callable
-
 import math
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field, replace
+
 import pandas as pd
 
 from indiaagents.strategy import (
-    DeterministicPlan, DeterministicStrategyEngine, PortfolioInputs, SignalState,
-    StrategyConfig, StrategyEvidence,
+    DeterministicPlan,
+    DeterministicStrategyEngine,
+    PortfolioInputs,
+    SignalState,
+    StrategyConfig,
+    StrategyEvidence,
 )
 from indiaagents.strategy.features import normalize_ohlcv
-from .costs import CostBreakdown, IndiaCostConfig, execution_price, transaction_cost
+
+from .costs import IndiaCostConfig, execution_price, transaction_cost
 
 
 @dataclass(frozen=True)
@@ -190,9 +195,17 @@ class EventDrivenBacktester:
                     raw = float(plan.entry_zone.low)
                 if raw is not None and plan.initial_stop is not None and raw > plan.initial_stop:
                     risk_budget = equity(float(bar["Open"])) * self.config.max_risk_pct / 100
-                    qty = min(plan.quantity, math.floor(risk_budget / (raw - plan.initial_stop)))
+                    expected_fill, _ = execution_price(raw, "BUY", self.costs)
+                    # Include configured entry slippage/impact in both risk and
+                    # allocation sizing; otherwise the simulated position can
+                    # exceed the user's budget before its first bar.
+                    qty = min(
+                        plan.quantity,
+                        math.floor(risk_budget / (expected_fill - plan.initial_stop)),
+                    )
                     max_alloc_qty = math.floor(
-                        equity(float(bar["Open"])) * self.config.max_single_stock_pct / 100 / raw
+                        equity(float(bar["Open"])) * self.config.max_single_stock_pct
+                        / 100 / expected_fill
                     )
                     qty = min(qty, max_alloc_qty)
                     if qty > 0:

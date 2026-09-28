@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 
@@ -61,7 +62,7 @@ def _cluster(values: list[tuple[float, pd.Timestamp, str]], tolerance: float,
         prices = [x[0] for x in group]
         center = float(np.median(prices))
         last = max(x[1] for x in group)
-        sources = sorted(set(x[2] for x in group))
+        sources = sorted({x[2] for x in group})
         half = tolerance * 0.5
         zones.append(PriceZone(
             low=round(center - half, 2), high=round(center + half, 2), kind=kind,
@@ -102,10 +103,10 @@ def gap_zones(df: pd.DataFrame, as_of: pd.Timestamp | str,
             if later.empty or float(later["Low"].min()) > prev_high:
                 zones.append(PriceZone(round(prev_high, 2), round(low, 2), "support", 1,
                                        d.index[i].date().isoformat(), "unfilled_gap_up"))
-        elif high < prev_low and (prev_low - high) >= minimum_atr * a:
-            if later.empty or float(later["High"].max()) < prev_low:
-                zones.append(PriceZone(round(high, 2), round(prev_low, 2), "resistance", 1,
-                                       d.index[i].date().isoformat(), "unfilled_gap_down"))
+        elif (high < prev_low and (prev_low - high) >= minimum_atr * a
+              and (later.empty or float(later["High"].max()) < prev_low)):
+            zones.append(PriceZone(round(high, 2), round(prev_low, 2), "resistance", 1,
+                                   d.index[i].date().isoformat(), "unfilled_gap_down"))
     return zones[-5:]
 
 

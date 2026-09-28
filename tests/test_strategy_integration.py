@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
+
 import pandas as pd
 
 from indiaagents.data.adapters import YahooOHLCVSource
-from indiaagents.pipeline import _lock_deterministic_decision
+from indiaagents.pipeline import (
+    _apply_deterministic_quality_block,
+    _lock_deterministic_decision,
+)
 from indiaagents.report import build_html, build_markdown
 from indiaagents.strategy import PortfolioInputs
 
@@ -98,3 +102,60 @@ def test_yahoo_adapter_discloses_adjusted_vintage_and_survivorship_limits() -> N
     assert "current adjusted-history vintage" in joined
     assert "survivorship" in joined and "delistings" in joined
     fake.history.assert_called_once()
+
+
+def test_quality_hard_block_review_has_zero_executable_size() -> None:
+    from types import SimpleNamespace
+
+    from indiaagents.strategy import DetailedAction
+    plan = SimpleNamespace(
+        action=DetailedAction.ENTER, legacy_action="BUY", quantity=25,
+        allocation_rupees=2500.0, allocation_pct=2.5,
+        max_loss_rupees=500.0, max_portfolio_loss_pct=0.5,
+        deterministic_reasons=[],
+    )
+    _apply_deterministic_quality_block(plan)
+    assert plan.action == DetailedAction.REVIEW and plan.legacy_action == "HOLD"
+    assert plan.quantity == 0 and plan.allocation_rupees == 0
+    assert plan.max_loss_rupees == 0 and plan.max_portfolio_loss_pct == 0
+
+
+def test_alpha_vantage_full_history_requests_outputsize_full() -> None:
+    from indiaagents.data import sources
+    payload = b'{"Time Series (Daily)":{"2026-01-02":{"1. open":"100","2. high":"101","3. low":"99","4. close":"100","5. volume":"1000"}}}'
+    seen = []
+
+    def fake_get(url, **kwargs):
+        seen.append(url)
+        return payload
+
+    with patch.dict("os.environ", {"ALPHA_VANTAGE_API_KEY": "fixture"}), \
+         patch.object(sources, "_cached_get", side_effect=fake_get):
+        out = sources.get_alpha_vantage_history("TEST.NS", full=True)
+    assert out is not None and len(out) == 1
+    assert "function=TIME_SERIES_DAILY" in seen[0]
+    assert "outputsize=full" in seen[0]
+
+
+def test_report_renders_walk_forward_metrics_windows_and_costs() -> None:
+    result = base_result()
+    result["backtest"] = {
+        "metrics": {"trades": 55, "win_rate_pct": 52, "profit_factor": 1.25,
+                    "expectancy_r": 0.15, "net_total_return_pct": 8.2,
+                    "cagr_pct": 7.1, "max_drawdown_pct": 11.0, "sharpe": 0.8,
+                    "sortino": 1.1, "nifty_relative_alpha_pct": 2.0,
+                    "exposure_pct": 35, "stop_loss_hit_rate_pct": 20,
+                    "gap_loss_frequency_pct": 2, "longest_losing_streak": 4,
+                    "bootstrap": {"status": "95% CI", "expectancy_r": [-0.01, 0.3]}},
+        "acceptance": {"status": "NO VALIDATED EDGE", "scope": "stock-specific occurrences only",
+                       "failed_reasons": ["stock diversity"]},
+        "windows": [{"number": 1, "train_start": "2020-01-01", "train_end": "2021-12-31",
+                     "validation_start": "2022-01-10", "validation_end": "2022-06-30",
+                     "test_start": "2022-07-08", "test_end": "2022-12-30"}],
+        "aggregate": {"cost_config": {"brokerage_pct": 0.03, "stt_buy_pct": 0.1,
+            "stt_sell_pct": 0.1, "exchange_pct": 0.00297, "gst_pct": 18,
+            "stamp_buy_pct": 0.015, "slippage_bps": 5, "impact_bps": 0}},
+    }
+    doc = build_markdown(result)
+    assert "55" in doc and "1.25" in doc and "2022-07-08" in doc
+    assert "brokerage 0.03%" in doc and "stock-specific occurrences only" in doc

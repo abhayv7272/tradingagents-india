@@ -7,13 +7,17 @@ No unofficial source is labelled official/reliable here.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime
 from typing import Protocol, runtime_checkable
 
 import pandas as pd
 import yfinance as yf
 
 from indiaagents.strategy.features import normalize_ohlcv
+
+
+def _utc_now() -> str:
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 @dataclass
@@ -64,7 +68,7 @@ class YahooOHLCVSource:
         else:
             limits.append("raw OHLC needs explicit split/dividend/bonus processing before long-horizon comparison")
         return OHLCVResult(data, DataProvenance(
-            self.name, symbol, datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            self.name, symbol, _utc_now(),
             adjusted, len(data), data.index[0].date().isoformat() if len(data) else None,
             data.index[-1].date().isoformat() if len(data) else None, limits,
         ))
@@ -81,7 +85,7 @@ class AlphaVantageOHLCVSource:
         ]))
         data = data[(data.index >= pd.Timestamp(start)) & (data.index <= pd.Timestamp(end))]
         return OHLCVResult(data, DataProvenance(
-            self.name, symbol, datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            self.name, symbol, _utc_now(),
             False, len(data), data.index[0].date().isoformat() if len(data) else None,
             data.index[-1].date().isoformat() if len(data) else None,
             ["Alpha Vantage fallback is unadjusted daily OHLCV in this project",
@@ -109,7 +113,7 @@ class CompositeOHLCVSource:
                     result.provenance.limitations.extend(failures)
                     return result
                 failures.append(f"{source.name}: only {len(result.data)} rows")
-            except Exception as exc:  # source failure must not be hidden
+            except Exception as exc:  # noqa: BLE001  # failure is recorded, then next adapter is tried
                 failures.append(f"{source.name}: {type(exc).__name__}: {str(exc)[:100]}")
         if best is None or best.data.empty:
             raise ValueError(f"No OHLCV source returned data for {symbol}: {'; '.join(failures)}")
@@ -120,7 +124,7 @@ class CompositeOHLCVSource:
 def fetch_strategy_history(symbol: str, years: int = 10, *, end: str | None = None,
                            adjusted: bool = True,
                            source: OHLCVSource | None = None) -> OHLCVResult:
-    end_ts = pd.Timestamp(end or datetime.utcnow().date().isoformat())
+    end_ts = pd.Timestamp(end or datetime.now(UTC).date().isoformat())
     start = (end_ts - pd.Timedelta(days=max(1, years) * 366)).date().isoformat()
     return (source or CompositeOHLCVSource()).fetch(
         symbol, start, end_ts.date().isoformat(), adjusted=adjusted,

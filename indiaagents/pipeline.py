@@ -212,11 +212,7 @@ class TradingAgentsIndiaPipeline:
                 data_limitations=_strategy_limits, event_date=next_result,
             )
             if quality.get("hard_block"):
-                strategy_plan.action = DetailedAction.REVIEW
-                strategy_plan.legacy_action = "HOLD"
-                strategy_plan.deterministic_reasons.append(
-                    "data-quality hard block forces REVIEW; no fresh deterministic trade"
-                )
+                _apply_deterministic_quality_block(strategy_plan)
             P("strategy", f"Deterministic {strategy_plan.action.value}: "
                           f"{strategy_plan.setup_name} ({strategy_plan.signal_state.value})", "ok")
         except Exception as e:
@@ -567,6 +563,20 @@ class TradingAgentsIndiaPipeline:
         P("report", f"✅ Report save ho gayi: {paths['md']}", "ok")
         result["paths"] = paths
         return result
+
+
+def _apply_deterministic_quality_block(plan) -> None:
+    """Fail closed without leaving a REVIEW action paired with a trade size."""
+    plan.action = DetailedAction.REVIEW
+    plan.legacy_action = "HOLD"
+    plan.quantity = 0
+    plan.allocation_rupees = 0.0
+    plan.allocation_pct = 0.0
+    plan.max_loss_rupees = 0.0
+    plan.max_portfolio_loss_pct = 0.0
+    plan.deterministic_reasons.append(
+        "data-quality hard block forces REVIEW; no fresh deterministic trade"
+    )
 
 
 def _deterministic_prompt(plan) -> str:

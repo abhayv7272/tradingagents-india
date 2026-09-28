@@ -5,19 +5,28 @@ plan, but cannot modify it in the pipeline/report contracts.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date
 import math
+from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
 
 from .features import daily_features, finite_or_none, normalize_ohlcv, weekly_features
-from .levels import ConfirmedPivot, breakout_retest_state, build_level_context, confirmed_pivots
+from .levels import (
+    ConfirmedPivot,
+    breakout_retest_state,
+    build_level_context,
+    confirmed_pivots,
+)
 from .relative_strength import relative_strength
 from .schemas import (
-    DetailedAction, DeterministicPlan, PortfolioInputs, PriceZone, SignalState,
-    StrategyConfig, StrategyEvidence,
+    DetailedAction,
+    DeterministicPlan,
+    PortfolioInputs,
+    PriceZone,
+    SignalState,
+    StrategyConfig,
+    StrategyEvidence,
 )
 
 
@@ -289,6 +298,11 @@ class DeterministicStrategyEngine:
             "drawdown_pct": finite_or_none(float(row.get("drawdown252", 0)) * 100, 2),
             "trend_slope20": finite_or_none(row.get("trend_slope20"), 5),
         }
+        horizon_time_stop = {
+            "swing": max(5, cfg.time_stop_sessions // 2),
+            "positional": cfg.time_stop_sessions,
+            "long-term": min(252, cfg.time_stop_sessions * 2),
+        }[p.horizon]
         weekly_summary = {
             "through": w.index[-1].date().isoformat() if len(w) else None,
             "close": finite_or_none(weekly_row.get("Close"), 2),
@@ -322,7 +336,7 @@ class DeterministicStrategyEngine:
                 "gap through stop: exit at next available open, not the stale stop price",
                 "event/results uncertainty: REVIEW; no automatic fresh entry",
             ],
-            time_stop_sessions=cfg.time_stop_sessions,
+            time_stop_sessions=horizon_time_stop,
             support_zones=levels["supports"], resistance_zones=levels["resistances"],
             relative_strength=rs, weekly=weekly_summary, daily=daily_summary,
             deterministic_reasons=reasons, limitations=list(dict.fromkeys(limitations)), evidence=ev,
@@ -394,11 +408,17 @@ class DeterministicStrategyEngine:
         if risk <= 0:
             return None, None, None
         valid_res = sorted(z.low for z in resistances if z.low > e + risk * 0.8)
-        t1 = valid_res[0] if valid_res else e + risk
-        # T2 must preserve the configured minimum and normally targets 2R.
+        # T1 never jumps beyond 1R merely because the next chart resistance is
+        # distant.  A defensible resistance between 0.8R and 1R may be used;
+        # otherwise 1R is the partial-profit level.
+        one_r = e + risk
+        t1 = min(one_r, valid_res[0]) if valid_res else one_r
+        # T2 must preserve minimum economics and remain strictly beyond T1.
         floor = e + max(2.0, self.config.min_reward_risk) * risk
         next_res = [x for x in valid_res if x > t1 + risk * 0.5]
         t2 = max(floor, next_res[0]) if next_res else floor
+        if t2 <= t1:  # defensive against unusual future configuration values
+            t2 = t1 + risk
         rr = (t2 - e) / risk
         return round(t1, 2), round(t2, 2), round(rr, 2)
 
@@ -418,7 +438,7 @@ class DeterministicStrategyEngine:
             from indiaagents.data.quant import REGIME_BANDS, regime_state
             regime = regime_state(d)
             regime_cap = float(REGIME_BANDS[regime["regime"]][1])
-        except Exception:
+        except Exception:  # noqa: BLE001 - sizing must fail closed if regime code/data fails
             regime_cap = 5.0
         horizon_cap = {"swing": 12.0, "positional": 20.0, "long-term": 20.0}[p.horizon]
         alloc_cap = min(p.max_single_stock_pct, regime_cap, horizon_cap,

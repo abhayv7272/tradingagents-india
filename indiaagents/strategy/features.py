@@ -1,9 +1,13 @@
 """Point-in-time daily and completed-week technical features."""
 from __future__ import annotations
 
+import logging
 import math
+
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 REQUIRED_OHLCV = ("Open", "High", "Low", "Close", "Volume")
 
@@ -26,8 +30,17 @@ def normalize_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
     out = out[~out.index.duplicated(keep="last")]
     for col in REQUIRED_OHLCV:
         out[col] = pd.to_numeric(out[col], errors="coerce")
+    before = len(out)
     out = out.dropna(subset=["Open", "High", "Low", "Close"])
-    out = out[(out[["Open", "High", "Low", "Close"]] > 0).all(axis=1)]
+    positive = (out[["Open", "High", "Low", "Close"]] > 0).all(axis=1)
+    consistent = (
+        (out["High"] >= out[["Open", "Close", "Low"]].max(axis=1))
+        & (out["Low"] <= out[["Open", "Close", "High"]].min(axis=1))
+    )
+    out = out[positive & consistent]
+    dropped = before - len(out)
+    if dropped:
+        logger.warning("Dropped %d invalid/non-positive OHLCV bar(s)", dropped)
     out["Volume"] = out["Volume"].fillna(0).clip(lower=0)
     return out
 

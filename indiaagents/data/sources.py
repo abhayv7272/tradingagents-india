@@ -283,9 +283,9 @@ def get_alpha_vantage_history(ticker: str, full: bool = True):
     if not key:
         return None
     try:
-        fn = "TIME_SERIES_DAILY" if full else "TIME_SERIES_DAILY&outputsize=compact"
-        url = (f"https://www.alphavantage.co/query?function={fn}"
-               f"&symbol={quote(_av_symbol(ticker))}&apikey={key}")
+        outputsize = "full" if full else "compact"
+        url = (f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY"
+               f"&symbol={quote(_av_symbol(ticker))}&outputsize={outputsize}&apikey={key}")
         return parse_av_history(json.loads(_cached_get(url, ttl_hours=12).decode()))
     except Exception:
         return None

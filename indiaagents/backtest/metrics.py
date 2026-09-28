@@ -1,9 +1,10 @@
 """Net-of-cost performance metrics, uncertainty and acceptance gate."""
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from dataclasses import asdict, dataclass
-import math
+
 import numpy as np
 import pandas as pd
 
@@ -71,7 +72,9 @@ def calculate_metrics(result: BacktestResult, benchmark: pd.DataFrame | pd.Serie
         eq = curve["equity"].astype(float)
         daily = eq.pct_change(fill_method=None).replace([np.inf, -np.inf], np.nan).dropna()
         peak = eq.cummax()
-        max_drawdown = float((eq / peak - 1).min() * 100)
+        # Report drawdown as a positive loss magnitude (e.g. 12.1%), matching
+        # common portfolio reporting and the acceptance threshold semantics.
+        max_drawdown = abs(float((eq / peak - 1).min() * 100))
         periods = max(1, len(eq) - 1)
         years = periods / 252
         total_return = result.final_equity / result.initial_capital - 1
@@ -134,21 +137,44 @@ class AcceptanceConfig:
     maximum_drawdown_pct: float = 25.0
     minimum_stocks: int = 3
     minimum_regimes: int = 2
+    maximum_stock_trade_share: float = 0.70
+    maximum_regime_trade_share: float = 0.80
 
 
 def acceptance_gate(metrics: dict, walk_forward_windows: int, *, stock_count: int = 1,
+                    stock_trade_counts: dict[str, int] | None = None,
                     config: AcceptanceConfig | None = None) -> dict:
     cfg = config or AcceptanceConfig()
     pf = metrics.get("profit_factor")
-    regimes = sum(v.get("trades", 0) > 0 for v in (metrics.get("regime_performance") or {}).values())
+    regime_counts = {
+        key: int(value.get("trades", 0) or 0)
+        for key, value in (metrics.get("regime_performance") or {}).items()
+        if key != "unavailable" and int(value.get("trades", 0) or 0) > 0
+    }
+    regimes = len(regime_counts)
+    regime_total = sum(regime_counts.values())
+    largest_regime_share = (max(regime_counts.values()) / regime_total
+                            if regime_total and regime_counts else 1.0)
+    supplied_stocks = {k: int(v) for k, v in (stock_trade_counts or {}).items() if int(v) > 0}
+    stock_total = sum(supplied_stocks.values())
+    largest_stock_share = (max(supplied_stocks.values()) / stock_total
+                           if stock_total and supplied_stocks else 1.0)
+    verified_stock_count = len(supplied_stocks)
     checks = {
         "minimum_oos_trades": int(metrics.get("trades", 0)) >= cfg.minimum_trades,
         "minimum_test_windows": int(walk_forward_windows) >= cfg.minimum_windows,
         "positive_net_expectancy": float(metrics.get("expectancy_r", 0) or 0) > cfg.minimum_expectancy_r,
         "profit_factor": pf is not None and float(pf) >= cfg.minimum_profit_factor,
         "drawdown_limit": abs(float(metrics.get("max_drawdown_pct", 0) or 0)) <= cfg.maximum_drawdown_pct,
-        "stock_diversity": int(stock_count) >= cfg.minimum_stocks,
+        # A caller-supplied integer alone is not evidence. Per-stock OOS trade
+        # counts are mandatory before the universe diversity check can pass.
+        "stock_diversity": (int(stock_count) >= cfg.minimum_stocks
+                            and verified_stock_count >= cfg.minimum_stocks),
+        "stock_count_reconciliation": stock_total == int(metrics.get("trades", 0)),
+        "stock_concentration": largest_stock_share <= cfg.maximum_stock_trade_share,
         "regime_diversity": regimes >= cfg.minimum_regimes,
+        "regime_count_reconciliation": regime_total == int(metrics.get("trades", 0)),
+        "regime_concentration": largest_regime_share <= cfg.maximum_regime_trade_share,
     }
     reasons = [name.replace("_", " ") for name, passed in checks.items() if not passed]
     validated = all(checks.values())
@@ -156,6 +182,10 @@ def acceptance_gate(metrics: dict, walk_forward_windows: int, *, stock_count: in
         "validated_edge": validated,
         "status": "VALIDATED EDGE" if validated else "NO VALIDATED EDGE",
         "checks": checks, "failed_reasons": reasons,
-        "thresholds": asdict(cfg), "stock_count": stock_count, "regime_count": regimes,
-        "scope": "universe-level" if stock_count >= cfg.minimum_stocks else "stock-specific occurrences only",
+        "thresholds": asdict(cfg), "stock_count": stock_count,
+        "verified_stock_count": verified_stock_count, "regime_count": regimes,
+        "largest_stock_trade_share": round(largest_stock_share, 4),
+        "largest_regime_trade_share": round(largest_regime_share, 4),
+        "scope": ("universe-level" if verified_stock_count >= cfg.minimum_stocks
+                  else "stock-specific occurrences only"),
     }

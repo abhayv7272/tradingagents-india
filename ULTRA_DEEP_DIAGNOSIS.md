@@ -170,3 +170,7 @@ Detailed methodology: [`docs/BACKTEST_METHODOLOGY.md`](docs/BACKTEST_METHODOLOGY
 Status/external-data checklist: [`docs/DETERMINISTIC_ENGINE_CHECKLIST.md`](docs/DETERMINISTIC_ENGINE_CHECKLIST.md).
 
 Historical performance is not a guarantee of future returns.
+
+### Post-implementation verification — 29 September 2026
+
+A second property-based/offline audit found and fixed target ordering, overlapping unseen-window, drawdown-sign, hard-block sizing, cache-key, Alpha Vantage full-history, malformed-OHLC, slippage-sizing, horizon-time-stop and concentration-gate defects. Final detailed results and the remaining live-data boundary are recorded in [`docs/DEEP_DIAGNOSIS_2026-09-29.md`](docs/DEEP_DIAGNOSIS_2026-09-29.md).

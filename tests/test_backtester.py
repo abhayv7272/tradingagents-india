@@ -1,16 +1,24 @@
 """Offline event-driven execution, cost and walk-forward tests."""
 from __future__ import annotations
 
-import numpy as np
+from itertools import pairwise
+
 import pandas as pd
 
 from indiaagents.backtest import (
-    AcceptanceConfig, BacktestConfig, EventDrivenBacktester, IndiaCostConfig,
-    acceptance_gate, walk_forward_splits,
+    BacktestConfig,
+    EventDrivenBacktester,
+    IndiaCostConfig,
+    acceptance_gate,
+    walk_forward_splits,
 )
 from indiaagents.backtest.costs import execution_price, transaction_cost
 from indiaagents.strategy import (
-    DetailedAction, DeterministicPlan, PortfolioInputs, PriceZone, SignalState,
+    DetailedAction,
+    DeterministicPlan,
+    PortfolioInputs,
+    PriceZone,
+    SignalState,
     StrategyEvidence,
 )
 
@@ -65,7 +73,7 @@ def run_fixture(data: pd.DataFrame, provider, policy: str = "adverse"):
 def test_signal_after_close_executes_next_session_not_same_bar() -> None:
     data = bars()
     result = run_fixture(data, provider_for(data.index[3], t1=200, t2=300))
-    buy = [f for f in result.fills if f.side == "BUY"][0]
+    buy = next(f for f in result.fills if f.side == "BUY")
     assert buy.date == data.index[4].date().isoformat()
     assert buy.reason == "NEXT_SESSION_ENTRY"
 
@@ -74,7 +82,7 @@ def test_gap_through_stop_fills_at_adverse_open() -> None:
     data = bars({5: (90, 92, 88, 89)})
     result = run_fixture(data, provider_for(data.index[3], t1=200, t2=300))
     trade = result.trades[0]
-    sell = [f for f in result.fills if f.side == "SELL"][0]
+    sell = next(f for f in result.fills if f.side == "SELL")
     assert trade.gap_loss and trade.stop_hit
     assert trade.exit_reason == "GAP_THROUGH_STOP"
     assert sell.raw_price == 90  # never grants the stale ₹95 stop fill
@@ -93,7 +101,7 @@ def test_partial_t1_then_t2_records_each_fill() -> None:
     result = run_fixture(data, provider_for(data.index[3]))
     reasons = [f.reason for f in result.fills]
     assert "TARGET_1_PARTIAL" in reasons and "TARGET_2" in reasons
-    t1 = [f for f in result.fills if f.reason == "TARGET_1_PARTIAL"][0]
+    t1 = next(f for f in result.fills if f.reason == "TARGET_1_PARTIAL")
     assert 0 < t1.quantity < 10
     assert result.trades[0].average_exit_price > 105
 
@@ -103,8 +111,33 @@ def test_trailing_stop_uses_prior_close_update() -> None:
                  6: (108, 109, 105, 106)})
     result = run_fixture(data, provider_for(data.index[3], t1=200, t2=300, atr=2))
     assert result.trades[0].exit_reason == "TRAILING_STOP"
-    sell = [f for f in result.fills if f.reason == "TRAILING_STOP"][0]
+    sell = next(f for f in result.fills if f.reason == "TRAILING_STOP")
     assert sell.raw_price == 106  # highest prior close 110 - 2*ATR
+
+
+def test_time_stop_executes_at_next_session_open_and_cash_reconciles() -> None:
+    data = bars({4: (100, 101, 99, 100), 5: (101, 102, 99, 101),
+                 6: (103, 104, 102, 103)})
+    result = run_fixture(
+        data, provider_for(data.index[3], t1=200, t2=300, atr=10, time_stop=2)
+    )
+    trade = result.trades[0]
+    assert trade.exit_reason == "TIME_STOP"
+    assert trade.exit_date == data.index[6].date().isoformat()
+    assert abs(result.final_equity - (result.initial_capital + sum(t.net_pnl for t in result.trades))) < 1e-6
+
+
+def test_execution_sizing_includes_entry_slippage_in_risk_budget() -> None:
+    data = bars({4: (100, 101, 99.5, 100)})
+    cfg = BacktestConfig(initial_capital=100_000, max_risk_pct=1,
+                         max_single_stock_pct=100, minimum_warmup=3)
+    result = EventDrivenBacktester(backtest_config=cfg).run(
+        data, signal_start=data.index[3],
+        signal_provider=provider_for(data.index[3], stop=99, quantity=1000,
+                                     t1=200, t2=300, atr=10),
+    )
+    buy = next(f for f in result.fills if f.side == "BUY")
+    assert (buy.price - 99) * buy.quantity <= 1000
 
 
 def test_transaction_costs_and_slippage_are_directional_and_net() -> None:
@@ -130,8 +163,32 @@ def test_walk_forward_boundaries_do_not_overlap_and_honor_embargo() -> None:
         assert train.stop + 7 == val.start
         assert val.stop + 7 == test.start
         assert train.stop <= val.start < val.stop <= test.start < test.stop
-    for a, b in zip(splits, splits[1:]):
+    for a, b in pairwise(splits):
         assert a[2].stop <= b[2].start
+
+
+def test_walk_forward_rejects_overlapping_unseen_windows() -> None:
+    import pytest
+
+    from indiaagents.backtest import WalkForwardConfig
+    idx = pd.bdate_range("2018-01-01", periods=1200)
+    cfg = WalkForwardConfig(train_sessions=500, validation_sessions=100,
+                            test_sessions=120, step_sessions=60, embargo_sessions=5)
+    with pytest.raises(ValueError, match="overlapping unseen windows"):
+        walk_forward_splits(idx, cfg)
+
+
+def test_drawdown_is_reported_as_positive_loss_magnitude() -> None:
+    from indiaagents.backtest.execution import BacktestResult
+    from indiaagents.backtest.metrics import calculate_metrics
+    curve = pd.DataFrame(
+        {"equity": [100_000, 90_000, 95_000], "exposed": [False, True, True],
+         "close": [100, 90, 95]},
+        index=pd.bdate_range("2026-01-01", periods=3),
+    )
+    result = BacktestResult(100_000, 95_000, [], [], [], curve,
+                            BacktestConfig(), IndiaCostConfig())
+    assert calculate_metrics(result)["max_drawdown_pct"] == 10.0
 
 
 def test_acceptance_gate_requires_sample_windows_edge_and_diversity() -> None:
@@ -140,11 +197,19 @@ def test_acceptance_gate_requires_sample_windows_edge_and_diversity() -> None:
         "max_drawdown_pct": -12,
         "regime_performance": {"positive": {"trades": 30}, "neutral": {"trades": 30}},
     }
-    passed = acceptance_gate(metrics, 3, stock_count=3)
+    passed = acceptance_gate(
+        metrics, 3, stock_count=3,
+        stock_trade_counts={"A": 20, "B": 20, "C": 20},
+    )
     assert passed["validated_edge"] and passed["status"] == "VALIDATED EDGE"
     single = acceptance_gate(metrics, 3, stock_count=1)
     assert not single["validated_edge"]
     assert not single["checks"]["stock_diversity"]
+    concentrated = acceptance_gate(
+        metrics, 3, stock_count=3,
+        stock_trade_counts={"A": 50, "B": 5, "C": 5},
+    )
+    assert not concentrated["checks"]["stock_concentration"]
     weak = dict(metrics, trades=49, expectancy_r=-0.01, profit_factor=1.19)
     failed = acceptance_gate(weak, 2, stock_count=3)
     assert failed["status"] == "NO VALIDATED EDGE"

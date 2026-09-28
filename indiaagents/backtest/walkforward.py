@@ -1,13 +1,15 @@
 """Rolling/expanding walk-forward evaluation with embargoed boundaries."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import hashlib
 import json
+from dataclasses import asdict, dataclass
+
 import pandas as pd
 
 from indiaagents.strategy import StrategyConfig
 from indiaagents.strategy.features import normalize_ohlcv
+
 from .costs import IndiaCostConfig
 from .execution import BacktestConfig, BacktestResult, EventDrivenBacktester
 from .metrics import AcceptanceConfig, acceptance_gate, calculate_metrics
@@ -58,6 +60,16 @@ class WalkForwardResult:
 def walk_forward_splits(index: pd.DatetimeIndex,
                         config: WalkForwardConfig | None = None) -> list[tuple[slice, slice, slice]]:
     cfg = config or WalkForwardConfig()
+    if min(cfg.train_sessions, cfg.validation_sessions, cfg.test_sessions,
+           cfg.step_sessions, cfg.minimum_windows) <= 0:
+        raise ValueError("walk-forward session counts and minimum_windows must be positive")
+    if cfg.embargo_sessions < 0:
+        raise ValueError("embargo_sessions cannot be negative")
+    if cfg.step_sessions < cfg.test_sessions:
+        raise ValueError(
+            "step_sessions must be >= test_sessions; overlapping unseen windows "
+            "would duplicate trades and overstate evidence"
+        )
     n = len(index)
     out: list[tuple[slice, slice, slice]] = []
     train_end = cfg.train_sessions
@@ -145,7 +157,8 @@ def run_walk_forward(stock: pd.DataFrame, *, nifty: pd.DataFrame | None = None,
         bc, cc, list(data_limitations or []),
     )
     metrics = calculate_metrics(aggregate, nifty)
-    gate = acceptance_gate(metrics, len(windows), stock_count=stock_count, config=acceptance_config)
+    gate_config = acceptance_config or AcceptanceConfig(minimum_windows=wc.minimum_windows)
+    gate = acceptance_gate(metrics, len(windows), stock_count=stock_count, config=gate_config)
     methodology = {
         "mode": "expanding" if wc.expanding else "rolling",
         "parameter_selection": "none; fixed interpretable v1 parameters",

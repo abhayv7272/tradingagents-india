@@ -1,14 +1,21 @@
 """Offline deterministic feature/strategy tests (no network, no LLM)."""
 from __future__ import annotations
 
-from dataclasses import replace
 import numpy as np
 import pandas as pd
 
 from indiaagents.strategy import (
-    DeterministicStrategyEngine, PortfolioInputs, StrategyConfig, StrategyEvidence,
+    DeterministicStrategyEngine,
+    PortfolioInputs,
+    PriceZone,
+    StrategyConfig,
+    StrategyEvidence,
 )
-from indiaagents.strategy.features import completed_weekly_ohlcv, daily_features, weekly_features
+from indiaagents.strategy.features import (
+    completed_weekly_ohlcv,
+    daily_features,
+    weekly_features,
+)
 from indiaagents.strategy.levels import build_level_context, confirmed_pivots
 from indiaagents.strategy.relative_strength import relative_strength, sector_index_for
 
@@ -46,15 +53,25 @@ def test_confirmed_pivot_is_unavailable_before_right_bar_closes() -> None:
     idx = pd.bdate_range("2026-01-01", periods=8)
     high = [10, 11, 12, 15, 12, 11, 10, 9]
     low = [8, 9, 10, 11, 10, 9, 8, 7]
-    df = pd.DataFrame({"Open": 10, "High": high, "Low": low,
-                       "Close": 10, "Volume": 1000}, index=idx)
+    close = [(h + l) / 2 for h, l in zip(high, low)]
+    df = pd.DataFrame({"Open": close, "High": high, "Low": low,
+                       "Close": close, "Volume": 1000}, index=idx)
     pivots = confirmed_pivots(df, left=2, right=2)
-    peak = [p for p in pivots if p.pivot_date == idx[3] and p.kind == "high"][0]
+    peak = next(p for p in pivots if p.pivot_date == idx[3] and p.kind == "high")
     assert peak.confirmation_date == idx[5]
     before = build_level_context(df, idx[4], left=2, right=2, pivots=pivots)
     after = build_level_context(df, idx[5], left=2, right=2, pivots=pivots)
     assert all(p.pivot_date != idx[3] for p in before["pivots"])
     assert any(p.pivot_date == idx[3] for p in after["pivots"])
+
+
+def test_invalid_ohlc_bar_is_dropped_instead_of_used() -> None:
+    from indiaagents.strategy.features import normalize_ohlcv
+    df = trend_data(10)
+    bad_date = df.index[5]
+    df.loc[bad_date, "High"] = df.loc[bad_date, "Low"] - 1
+    out = normalize_ohlcv(df)
+    assert bad_date not in out.index and len(out) == 9
 
 
 def test_breakout_levels_are_shifted_and_point_in_time() -> None:
@@ -69,10 +86,14 @@ def test_breakout_levels_are_shifted_and_point_in_time() -> None:
 
 def test_relative_strength_periods_slope_and_unavailable_sector() -> None:
     idx = pd.bdate_range("2025-01-01", periods=150)
-    stock = pd.DataFrame({"Open": 100, "High": 101, "Low": 99,
-                          "Close": np.linspace(100, 160, 150), "Volume": 1000}, index=idx)
-    nifty = stock.copy()
-    nifty["Close"] = np.linspace(100, 120, 150)
+    stock_close = np.linspace(100, 160, 150)
+    stock = pd.DataFrame({"Open": stock_close, "High": stock_close * 1.01,
+                          "Low": stock_close * 0.99,
+                          "Close": stock_close, "Volume": 1000}, index=idx)
+    nifty_close = np.linspace(100, 120, 150)
+    nifty = pd.DataFrame({"Open": nifty_close, "High": nifty_close * 1.01,
+                          "Low": nifty_close * 0.99,
+                          "Close": nifty_close, "Volume": 1000}, index=idx)
     out = relative_strength(stock, nifty)
     assert out["nifty"]["1m_pct"] > 0
     assert out["nifty"]["3m_pct"] > 0
@@ -107,6 +128,27 @@ def test_active_breakout_has_deterministic_levels_directions_and_sizing() -> Non
     assert "volume" in plan.trigger.lower()
 
 
+def test_distant_resistance_cannot_put_t1_above_t2() -> None:
+    engine = DeterministicStrategyEngine()
+    entry = PriceZone(100, 101, "entry")
+    resistance = PriceZone(150, 152, "resistance", touches=2)
+    t1, t2, rr = engine._targets(entry, 95, [resistance])
+    assert 101 < t1 < t2
+    assert t1 == 107  # exactly 1R; distant resistance is not mislabeled as T1
+    assert rr is not None and rr >= 2
+
+
+def test_full_history_preparation_matches_prefix_only_analysis() -> None:
+    stock = trend_data(360, breakout=False)
+    nifty = trend_data(360)
+    engine = DeterministicStrategyEngine()
+    prepared = engine.prepare(stock, nifty)
+    cutoff = stock.index[300]
+    prefix = engine.analyze(stock.loc[:cutoff], as_of=cutoff, nifty=nifty.loc[:cutoff]).to_dict()
+    from_full = engine.on_date(prepared, as_of=cutoff).to_dict()
+    assert prefix == from_full
+
+
 def test_acceptance_absence_blocks_fresh_entry_but_not_signal_measurement() -> None:
     stock = trend_data(320, breakout=True)
     nifty = trend_data(320)
@@ -116,6 +158,17 @@ def test_acceptance_absence_blocks_fresh_entry_but_not_signal_measurement() -> N
     assert plan.signal_state.value == "ACTIVE"
     assert plan.action.value == "WAIT"
     assert plan.evidence.status == "BACKTEST NOT AVAILABLE"
+
+
+def test_horizon_changes_time_stop_deterministically() -> None:
+    stock, nifty = trend_data(320), trend_data(320)
+    engine = DeterministicStrategyEngine()
+    stops = {}
+    for horizon in ("swing", "positional", "long-term"):
+        stops[horizon] = engine.analyze(
+            stock, nifty=nifty, portfolio=PortfolioInputs(horizon=horizon)
+        ).time_stop_sessions
+    assert stops == {"swing": 15, "positional": 30, "long-term": 60}
 
 
 def test_fresh_wait_vs_existing_hold_and_stale_review() -> None:

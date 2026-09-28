@@ -37,7 +37,7 @@ class PortfolioInputs:
     horizon: str = "positional"  # swing | positional | long-term
     risk_profile: str = "balanced"  # conservative | balanced | aggressive
 
-    def validated(self) -> "PortfolioInputs":
+    def validated(self) -> PortfolioInputs:
         horizon = self.horizon if self.horizon in {"swing", "positional", "long-term"} else "positional"
         profile = self.risk_profile if self.risk_profile in {"conservative", "balanced", "aggressive"} else "balanced"
         capital = max(0.0, float(self.portfolio_capital or 0.0))
@@ -68,7 +68,7 @@ class StrategyConfig:
     liquidity_participation_pct: float = 1.0
     require_validated_edge: bool = True
 
-    def validated(self) -> "StrategyConfig":
+    def validated(self) -> StrategyConfig:
         return StrategyConfig(
             pivot_left=max(1, min(10, int(self.pivot_left))),
             pivot_right=max(1, min(10, int(self.pivot_right))),

@@ -159,7 +159,7 @@ Delivery/status checklist: **[docs/DETERMINISTIC_ENGINE_CHECKLIST.md](docs/DETER
 
 ### Acceptance gate defaults
 
-At least 50 unseen OOS trades, three test windows, positive net expectancy, PF ≥1.20, max drawdown ≤25%, three stocks and two regimes. Any failed condition returns **NO VALIDATED EDGE** and no forced fresh entry.
+At least 50 unseen OOS trades, three test windows, positive net expectancy, PF ≥1.20, max drawdown ≤25%, verified per-stock counts for three stocks, and two regimes. One stock cannot exceed 70% and one regime cannot exceed 80% of OOS trades. Any failed condition returns **NO VALIDATED EDGE** and no forced fresh entry.
 
 ### Important data honesty
 
