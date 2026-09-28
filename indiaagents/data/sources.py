@@ -19,11 +19,14 @@ import json
 import math
 import os
 import re
+import tempfile
 import time
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import requests
+
+from .health import SourceResult, classify_exception, health
 
 try:  # optional at import time — parser tests bina bs4 ke bhi chal jaate hain
     from bs4 import BeautifulSoup
@@ -40,18 +43,53 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 BASE_HEADERS = {"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"}
 
 
+class CachedBytes(bytes):
+    """Bytes-compatible HTTP payload with cache-hit provenance."""
+
+    def __new__(cls, value: bytes, *, cached: bool):
+        obj = bytes.__new__(cls, value)
+        obj.cached = cached
+        return obj
+
+
+class HTTPFetchError(RuntimeError):
+    """HTTP failure carrying only a status code (never a credential-bearing URL)."""
+
+    def __init__(self, status_code: int):
+        self.status_code = int(status_code)
+        super().__init__(f"HTTP {self.status_code}")
+
+
+def _cache_path(url: str) -> Path:
+    # SHA-256 avoids a weak cache key. The URL/API key itself is never written.
+    return CACHE_DIR / (hashlib.sha256(url.encode()).hexdigest() + ".cache")
+
+
 def _cached_get(url: str, headers: dict | None = None, ttl_hours: float = 12.0,
                 timeout: int = 12) -> bytes:
-    """GET with file-TTL cache. Raises on HTTP error (cache me sirf 200s)."""
-    f = CACHE_DIR / (hashlib.md5(url.encode()).hexdigest() + ".cache")
+    """GET with a file-TTL cache; cache only complete HTTP-200 payloads.
+
+    Writes are atomic so concurrent Streamlit sessions cannot leave a partial
+    parser input.  Expired content is not silently served as current evidence.
+    """
+    f = _cache_path(url)
     if f.exists() and (time.time() - f.stat().st_mtime) < ttl_hours * 3600:
-        return f.read_bytes()
+        return CachedBytes(f.read_bytes(), cached=True)
     r = requests.get(url, headers=headers or BASE_HEADERS, timeout=timeout)
     if r.status_code != 200:
-        raise ValueError(f"HTTP {r.status_code} for {url}")
+        raise HTTPFetchError(r.status_code)
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_bytes(r.content)
-    return r.content
+    tmp_name = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=f.parent, prefix=f.name + ".", delete=False) as tmp:
+            tmp.write(r.content)
+            tmp.flush()
+            tmp_name = tmp.name
+        Path(tmp_name).replace(f)
+    finally:
+        if tmp_name:
+            Path(tmp_name).unlink(missing_ok=True)
+    return CachedBytes(r.content, cached=False)
 
 
 def _num(text: str | None) -> float | None:
@@ -117,50 +155,88 @@ def parse_screener_html(html_text: str) -> dict:
 
 
 def get_screener_fundamentals(ticker: str, name: str | None = None,
-                              trade_date: str | None = None) -> dict | None:
-    """Fetch screener.in top-ratios + about for an NSE/BSE symbol. None on failure."""
+                              trade_date: str | None = None, *,
+                              with_health: bool = False) -> dict | None | SourceResult:
+    """Fetch Screener top-ratios, optionally returning structured health.
+
+    Screener is an unofficial HTML adapter and is never represented as an
+    official or guaranteed feed. ``trade_date`` is accepted for compatibility;
+    callers must suppress this latest-only snapshot in historical runs.
+    """
+    del trade_date
     sym = ticker.replace(".NS", "").replace(".BO", "").replace(".BSE", "").strip().upper()
+
+    def done(value, record):
+        result = SourceResult(value, record)
+        return result if with_health else result.value
+
     if not sym:
-        return None
+        return done(None, health("screener", "fundamentals-crosscheck", "empty",
+                                 "blank exchange symbol"))
     candidates = [
         f"https://www.screener.in/company/{sym}/consolidated/",
         f"https://www.screener.in/company/{sym}/",
     ]
-    # search-API fallback (screener slug ≠ ticker ho sakta hai, e.g. M&M)
+    failures = []
+    # Search is only a slug fallback; a failed search does not prevent direct URLs.
     if name:
         try:
             q = quote(name.strip()[:40])
-            data = json.loads(_cached_get(
-                f"https://www.screener.in/api/company/search/?q={q}", ttl_hours=24).decode("utf-8", "ignore"))
+            raw = _cached_get(
+                f"https://www.screener.in/api/company/search/?q={q}", ttl_hours=24,
+            ).decode("utf-8", "ignore")
+            data = json.loads(raw)
+            if not isinstance(data, list):
+                raise TypeError("search payload is not a list")
             for hit in data[:3]:
-                u = (hit.get("url") or "").strip()
+                u = (hit.get("url") or "").strip() if isinstance(hit, dict) else ""
                 if u:
                     if not u.startswith("http"):
                         u = "https://www.screener.in" + u
+                    parsed_url = urlparse(u)
+                    if parsed_url.scheme != "https" or not (
+                        parsed_url.hostname == "screener.in"
+                        or str(parsed_url.hostname).endswith(".screener.in")
+                    ):
+                        continue
                     candidates += [u.rstrip("/") + "/consolidated/", u.rstrip("/") + "/"]
-        except Exception:
-            pass
+        except Exception as exc:  # direct candidates are still attempted
+            failures.append(classify_exception(exc))
 
-    for url in candidates:
+    for url in dict.fromkeys(candidates):
         try:
-            html_text = _cached_get(url, ttl_hours=12).decode("utf-8", "ignore")
+            payload = _cached_get(url, ttl_hours=12)
+            html_text = payload.decode("utf-8", "ignore")
             if "top-ratios" not in html_text:
+                failures.append(("parse-failed", "expected top-ratios section missing"))
                 continue
             parsed = parse_screener_html(html_text)
             if not parsed["ratios"]:
+                failures.append(("parse-failed", "top-ratios section could not be parsed"))
                 continue
             out = {"ratios": parsed["ratios"], "about": parsed["about"],
-                   "url": url, "slug": url.split("/company/")[1].strip("/") if "/company/" in url else sym}
-            # normalized numeric keys (for cross-checks)
+                   "url": url,
+                   "slug": url.split("/company/")[1].strip("/")
+                   if "/company/" in url else sym}
             for label, key in _SCREENER_KEYS.items():
                 if label in parsed["ratios"]:
-                    v = _num(parsed["ratios"][label])
-                    if v is not None:
-                        out[key] = v
-            return out
-        except Exception:
-            continue
-    return None
+                    value = _num(parsed["ratios"][label])
+                    if value is not None:
+                        out[key] = value
+            return done(out, health(
+                "screener", "fundamentals-crosscheck", "available",
+                "unofficial latest HTML snapshot parsed", rows=len(parsed["ratios"]),
+                cached=bool(getattr(payload, "cached", False)),
+            ))
+        except Exception as exc:
+            failures.append(classify_exception(exc))
+
+    status, detail = max(
+        failures or [("empty", "no ratios returned")],
+        key=lambda item: {"empty": 1, "parse-failed": 2, "network-blocked": 3,
+                          "rate-limited": 4, "unconfigured": 0}.get(item[0], 0),
+    )
+    return done(None, health("screener", "fundamentals-crosscheck", status, detail))
 
 
 def screener_text_block(sc: dict | None) -> str:
@@ -185,39 +261,65 @@ def screener_text_block(sc: dict | None) -> str:
 
 def parse_nse_quote(d: dict) -> dict | None:
     """NSE /api/quote-equity JSON → compact dict (fixture-testable)."""
-    pi = (d or {}).get("priceInfo") or {}
-    last = pi.get("lastPrice")
-    if not last:
+    if not isinstance(d, dict):
         return None
-    ti = (d.get("tradeInfo") or {})
-    out = {
-        "last": last, "prev_close": pi.get("previousClose"), "vwap": pi.get("vwap"),
-        "day_high": pi.get("intraDayHighLow", {}).get("max") if isinstance(pi.get("intraDayHighLow"), dict) else pi.get("dayHigh"),
-        "day_low": pi.get("intraDayHighLow", {}).get("min") if isinstance(pi.get("intraDayHighLow"), dict) else pi.get("dayLow"),
-        "week_52_high": pi.get("week52High"), "week_52_low": pi.get("week52Low"),
-        "volume": ti.get("totalTradedVolume"),
+    pi = d.get("priceInfo") or {}
+    try:
+        last = float(pi.get("lastPrice"))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(last) or last <= 0:
+        return None
+    ti = d.get("tradeInfo") or {}
+    return {
+        "last": last, "prev_close": _num(pi.get("previousClose")), "vwap": _num(pi.get("vwap")),
+        "day_high": _num(pi.get("intraDayHighLow", {}).get("max"))
+        if isinstance(pi.get("intraDayHighLow"), dict) else _num(pi.get("dayHigh")),
+        "day_low": _num(pi.get("intraDayHighLow", {}).get("min"))
+        if isinstance(pi.get("intraDayHighLow"), dict) else _num(pi.get("dayLow")),
+        "week_52_high": _num(pi.get("week52High")), "week_52_low": _num(pi.get("week52Low")),
+        "volume": _num(ti.get("totalTradedVolume")),
         "updated": (d.get("metadata") or {}).get("lastUpdateTime"),
     }
-    return out
 
 
-def get_nse_quote(ticker: str) -> dict | None:
-    """Live NSE quote (session bootstrap homepage → api). None on any failure."""
+def get_nse_quote(ticker: str, *, with_health: bool = False) -> dict | None | SourceResult:
+    """Live unofficial NSE quote (homepage cookie bootstrap then quote API)."""
+    def done(value, record):
+        result = SourceResult(value, record)
+        return result if with_health else result.value
+
     if str(ticker).upper().endswith((".BO", ".BSE")):
-        return None  # NSE API sirf NSE-listed symbols ke liye
+        return done(None, health("nse", "live-quote", "suppressed",
+                                 "BSE-only symbol is not eligible for NSE quote API"))
     sym = ticker.replace(".NS", "").strip().upper()
     if not sym:
-        return None
+        return done(None, health("nse", "live-quote", "empty", "blank symbol"))
     try:
-        s = requests.Session()
-        s.headers.update(BASE_HEADERS)
-        s.get("https://www.nseindia.com", timeout=8)  # cookies bootstrap
-        r = s.get(f"https://www.nseindia.com/api/quote-equity?symbol={quote(sym)}", timeout=8)
-        if r.status_code != 200:
-            return None
-        return parse_nse_quote(r.json())
-    except Exception:
-        return None
+        session = requests.Session()
+        session.headers.update(BASE_HEADERS)
+        bootstrap = session.get("https://www.nseindia.com", timeout=8)
+        if bootstrap.status_code != 200:
+            raise HTTPFetchError(bootstrap.status_code)
+        response = session.get(
+            f"https://www.nseindia.com/api/quote-equity?symbol={quote(sym, safe='')}", timeout=8,
+        )
+        if response.status_code != 200:
+            raise HTTPFetchError(response.status_code)
+        try:
+            payload = response.json()
+        except Exception as exc:
+            raise ValueError("invalid NSE JSON") from exc
+        quote_data = parse_nse_quote(payload)
+        if quote_data is None:
+            return done(None, health("nse", "live-quote", "parse-failed",
+                                     "quote payload had no valid positive last price"))
+        return done(quote_data, health("nse", "live-quote", "available",
+                                       "unofficial live quote parsed", rows=1,
+                                       as_of=quote_data.get("updated")))
+    except Exception as exc:
+        status, detail = classify_exception(exc)
+        return done(None, health("nse", "live-quote", status, detail))
 
 
 # --------------------------------------------------------------------------------------------------
@@ -236,59 +338,125 @@ def _av_key() -> str:
 def parse_av_quote(d: dict) -> dict | None:
     """Alpha Vantage GLOBAL_QUOTE JSON → compact dict (fixture-testable)."""
     q = (d or {}).get("Global Quote") or {}
-    if not q.get("05. price"):
+    try:
+        price = float(q.get("05. price"))
+    except (TypeError, ValueError):
         return None
-    return {"price": float(q["05. price"]), "prev_close": _num(q.get("08. previous close")),
+    if not math.isfinite(price) or price <= 0:
+        return None
+    return {"price": price, "prev_close": _num(q.get("08. previous close")),
             "day_high": _num(q.get("03. high")), "day_low": _num(q.get("04. low")),
             "volume": _num(q.get("06. volume"))}
 
 
-def get_alpha_vantage_quote(ticker: str) -> dict | None:
-    """Needs ALPHA_VANTAGE_API_KEY (free). None if no key / failure."""
+def _av_payload_failure(payload: object) -> tuple[str, str] | None:
+    if not isinstance(payload, dict):
+        return "parse-failed", "provider payload is not a JSON object"
+    text = " ".join(str(payload.get(key) or "") for key in ("Note", "Information"))
+    if "rate" in text.lower() or "frequency" in text.lower() or "call" in text.lower():
+        return "rate-limited", "provider returned a call-frequency/rate-limit message"
+    if payload.get("Error Message"):
+        return "empty", "provider rejected or did not recognize the symbol"
+    return None
+
+
+def get_alpha_vantage_quote(ticker: str, *,
+                            with_health: bool = False) -> dict | None | SourceResult:
+    """Alpha Vantage live quote; requires a free external API key."""
+    def done(value, record):
+        result = SourceResult(value, record)
+        return result if with_health else result.value
+
     key = _av_key()
     if not key:
-        return None
+        return done(None, health("alpha-vantage", "live-quote", "unconfigured",
+                                 "ALPHA_VANTAGE_API_KEY is not configured"))
     try:
         url = (f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE"
-               f"&symbol={quote(_av_symbol(ticker))}&apikey={key}")
-        return parse_av_quote(json.loads(_cached_get(url, ttl_hours=0.05).decode()))
-    except Exception:
-        return None
+               f"&symbol={quote(_av_symbol(ticker), safe='')}&apikey={key}")
+        raw = _cached_get(url, ttl_hours=0.05)
+        payload = json.loads(raw.decode("utf-8", "strict"))
+        failure = _av_payload_failure(payload)
+        if failure:
+            return done(None, health("alpha-vantage", "live-quote", *failure))
+        parsed = parse_av_quote(payload)
+        if parsed is None:
+            return done(None, health("alpha-vantage", "live-quote", "parse-failed",
+                                     "GLOBAL_QUOTE had no valid positive price"))
+        return done(parsed, health(
+            "alpha-vantage", "live-quote", "available",
+            "quote payload parsed", rows=1,
+            cached=bool(getattr(raw, "cached", False)),
+        ))
+    except Exception as exc:
+        status, detail = classify_exception(exc)
+        return done(None, health("alpha-vantage", "live-quote", status, detail))
 
 
 def parse_av_history(d: dict):
-    """AV TIME_SERIES_DAILY(_FULL) JSON → DataFrame (Open/High/Low/Close/Volume, tz-naive)."""
+    """AV daily JSON → validated, sorted, tz-naive OHLCV DataFrame."""
     import pandas as pd
-    raw = d.get("Time Series (Daily)") or d.get("Monthly Time Series") or {}
-    if not raw:
+    if not isinstance(d, dict):
+        return None
+    raw = d.get("Time Series (Daily)") or {}
+    if not isinstance(raw, dict) or not raw:
         return None
     rows = {}
     for date, vals in raw.items():
         try:
-            rows[date] = {"Open": float(vals["1. open"]), "High": float(vals["2. high"]),
-                          "Low": float(vals["3. low"]), "Close": float(vals["4. close"]),
-                          "Volume": float(vals.get("5. volume") or 0)}
+            row = {"Open": float(vals["1. open"]), "High": float(vals["2. high"]),
+                   "Low": float(vals["3. low"]), "Close": float(vals["4. close"]),
+                   "Volume": float(vals.get("5. volume") or 0)}
+            if (not all(math.isfinite(row[key]) and row[key] > 0
+                        for key in ("Open", "High", "Low", "Close"))
+                    or not math.isfinite(row["Volume"]) or row["Volume"] < 0
+                    or row["High"] < max(row["Open"], row["Close"], row["Low"])
+                    or row["Low"] > min(row["Open"], row["Close"], row["High"])):
+                continue
+            rows[date] = row
         except (KeyError, ValueError, TypeError):
             continue
     if not rows:
         return None
     df = pd.DataFrame.from_dict(rows, orient="index")
-    df.index = pd.to_datetime(df.index)
-    return df.sort_index()
+    df.index = pd.to_datetime(df.index, errors="coerce")
+    df = df[~df.index.isna()]
+    return df[~df.index.duplicated(keep="last")].sort_index() if not df.empty else None
 
 
-def get_alpha_vantage_history(ticker: str, full: bool = True):
-    """Daily OHLCV from Alpha Vantage (BSE symbol). DataFrame | None."""
+def get_alpha_vantage_history(ticker: str, full: bool = True, *,
+                              with_health: bool = False):
+    """Unadjusted daily OHLCV from Alpha Vantage (BSE symbol)."""
+    def done(value, record):
+        result = SourceResult(value, record)
+        return result if with_health else result.value
+
     key = _av_key()
     if not key:
-        return None
+        return done(None, health("alpha-vantage", "ohlcv-fallback", "unconfigured",
+                                 "ALPHA_VANTAGE_API_KEY is not configured"))
     try:
         outputsize = "full" if full else "compact"
         url = (f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY"
-               f"&symbol={quote(_av_symbol(ticker))}&outputsize={outputsize}&apikey={key}")
-        return parse_av_history(json.loads(_cached_get(url, ttl_hours=12).decode()))
-    except Exception:
-        return None
+               f"&symbol={quote(_av_symbol(ticker), safe='')}&outputsize={outputsize}&apikey={key}")
+        raw = _cached_get(url, ttl_hours=12)
+        payload = json.loads(raw.decode("utf-8", "strict"))
+        failure = _av_payload_failure(payload)
+        if failure:
+            return done(None, health("alpha-vantage", "ohlcv-fallback", *failure))
+        frame = parse_av_history(payload)
+        if frame is None or frame.empty:
+            return done(None, health("alpha-vantage", "ohlcv-fallback", "parse-failed",
+                                     "daily payload had no valid OHLCV rows"))
+        return done(frame, health(
+            "alpha-vantage", "ohlcv-fallback", "available",
+            "unadjusted daily BSE history parsed", rows=len(frame),
+            as_of=frame.index[-1].date().isoformat(),
+            cached=bool(getattr(raw, "cached", False)),
+        ))
+    except Exception as exc:
+        status, detail = classify_exception(exc)
+        return done(None, health("alpha-vantage", "ohlcv-fallback", status, detail))
 
 
 # --------------------------------------------------------------------------------------------------

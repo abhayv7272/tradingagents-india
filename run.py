@@ -105,6 +105,7 @@ Quantity: {det.get('quantity')} | Allocation: {det.get('allocation_pct')}%
 Max loss: ₹{det.get('max_loss_rupees'):,.2f} ({det.get('max_portfolio_loss_pct')}% portfolio)
 R:R:      {det.get('reward_risk') or 'unavailable'}
 Evidence: {det.get('evidence', {}).get('status', 'BACKTEST NOT AVAILABLE')}
+Sources:  {(res.get('data_sources') or {}).get('text', 'no diagnostics')}
 
 AI commentary is separate and cannot override the code-owned plan.
 

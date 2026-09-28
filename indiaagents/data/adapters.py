@@ -78,8 +78,17 @@ class AlphaVantageOHLCVSource:
     name = "alpha_vantage"
 
     def fetch(self, symbol: str, start: str, end: str, *, adjusted: bool = True) -> OHLCVResult:
+        from .health import SourceResult
         from .sources import get_alpha_vantage_history
-        raw = get_alpha_vantage_history(symbol)
+        result = get_alpha_vantage_history(symbol, with_health=True)
+        if isinstance(result, SourceResult):
+            raw = result.value
+            if raw is None:
+                raise RuntimeError(
+                    f"Alpha Vantage {result.health.status}: {result.health.detail}"
+                )
+        else:  # third-party/injected legacy adapter
+            raw = result
         data = normalize_ohlcv(raw) if raw is not None else normalize_ohlcv(pd.DataFrame(columns=[
             "Open", "High", "Low", "Close", "Volume",
         ]))

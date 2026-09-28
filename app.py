@@ -492,6 +492,17 @@ if res:
                            file_name=md_path.name, mime="text/markdown")
 
     with tab7:
+        health_rows = (res.get("data_sources") or {}).get("health") or []
+        with st.expander("🔌 Source health / provenance", expanded=True):
+            if health_rows:
+                health_frame = pd.DataFrame(health_rows)
+                visible = [column for column in
+                           ("source", "category", "status", "rows", "as_of", "detail", "cached")
+                           if column in health_frame.columns]
+                st.dataframe(health_frame[visible], use_container_width=True, hide_index=True)
+                st.caption("empty ≠ market silence. Network/config/rate/parse/stale/PIT-suppressed states are separate.")
+            else:
+                st.caption("No structured source diagnostics in this legacy result.")
         for title, key in [("📈 Technical data", "indicator_block"),
                            ("💰 Fundamentals", "fundamentals_block"),
                            ("📰 Company news", "news_block"),

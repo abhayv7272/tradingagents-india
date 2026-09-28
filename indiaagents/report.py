@@ -143,6 +143,40 @@ def _rs_text(rs: dict) -> str:
     return " · ".join(parts) or "unavailable"
 
 
+def _source_health_markdown(r: dict) -> str:
+    records = (r.get("data_sources") or {}).get("health") or []
+    if not records:
+        return "*No structured source diagnostics in this (possibly legacy) report.*"
+    rows = []
+    for record in records:
+        rows.append(
+            f"| {record.get('source', '—')} | {record.get('category', '—')} | "
+            f"**{record.get('status', '—')}** | {record.get('rows', '—') if record.get('rows') is not None else '—'} | "
+            f"{record.get('as_of') or '—'} | {str(record.get('detail') or '—').replace('|', '/')} |"
+        )
+    return ("| Source | Category | Status | Rows | As of | Detail |\n"
+            "|---|---|---:|---:|---|---|\n" + "\n".join(rows))
+
+
+def _source_health_html(r: dict) -> str:
+    records = (r.get("data_sources") or {}).get("health") or []
+    if not records:
+        return "<p>No structured source diagnostics in this report.</p>"
+    rows = "".join(
+        "<tr>"
+        f"<td>{_esc(record.get('source'))}</td>"
+        f"<td>{_esc(record.get('category'))}</td>"
+        f"<td><strong>{_esc(record.get('status'))}</strong></td>"
+        f"<td>{_esc(record.get('rows'))}</td>"
+        f"<td>{_esc(record.get('as_of'))}</td>"
+        f"<td>{_esc(record.get('detail'))}</td>"
+        "</tr>"
+        for record in records
+    )
+    return ("<table><tr><th>Source</th><th>Category</th><th>Status</th>"
+            "<th>Rows</th><th>As of</th><th>Detail</th></tr>" + rows + "</table>")
+
+
 def _backtest_markdown(r: dict) -> str:
     bt = r.get("backtest")
     if not bt:
@@ -296,6 +330,13 @@ def build_markdown(r: dict) -> str:
 - **🔌 Data sources:** {ds_text}{' · ' + ds_quality if ds_quality else ''}
 
 {r['market_context_block']}
+
+### Source health / provenance
+
+{_source_health_markdown(r)}
+
+`empty` is not evidence of silence; `network-blocked`, `rate-limited`, `parse-failed`,
+`unconfigured`, `stale`, and point-in-time `suppressed` are distinct states.
 
 ---
 
@@ -512,7 +553,7 @@ def build_html(r: dict) -> str:
     vicon = {"BUY": "🟢", "ENTER": "🟢", "ADD": "🟢", "SELL": "🔴",
              "TRIM": "🟠", "EXIT": "🔴", "HOLD": "🟡", "WAIT": "🟡",
              "REVIEW": "⚠️"}.get(d, "⚪")
-    conf = int(dec.get("confidence", 0) or 0)
+    int(dec.get("confidence", 0) or 0)
     _reg = (r.get("decision") or {}).get("regime")
     _regband = (r.get("decision") or {}).get("regime_band")
     _q = r.get("quant") or {}
@@ -710,6 +751,7 @@ def build_html(r: dict) -> str:
 <details><summary>🇮🇳 India macro news</summary><pre>{_esc(r['macro_news_block'])}</pre></details>
 <details><summary>🌍 Global macro (FRED)</summary><pre>{_esc(r.get('fred_block', '—'))}</pre></details>
 <details><summary>💬 Social chatter</summary><pre>{_esc(r['social_block'])}</pre></details>
+<details open><summary>🔌 Source health / provenance</summary>{_source_health_html(r)}</details>
 </div>
 
 <div class='card' style='border-color:#f59e0b55'>

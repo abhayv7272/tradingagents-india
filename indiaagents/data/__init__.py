@@ -11,4 +11,8 @@ __all__ = [
 ]
 
 from .adapters import CompositeOHLCVSource, DataProvenance, OHLCVResult, YahooOHLCVSource
-__all__ += ["CompositeOHLCVSource", "DataProvenance", "OHLCVResult", "YahooOHLCVSource"]
+from .health import SourceHealth, SourceResult
+__all__ += [
+    "CompositeOHLCVSource", "DataProvenance", "OHLCVResult", "YahooOHLCVSource",
+    "SourceHealth", "SourceResult",
+]

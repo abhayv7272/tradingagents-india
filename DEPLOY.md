@@ -143,7 +143,7 @@ App khud detect karke sidebar badge aur battle rotation mein shamil kar degi.
 
 `ALPHA_VANTAGE_API_KEY` (free: alphavantage.co/support/#api-key, 25 req/day) add karne se
 jab Yahoo ka data na mile / short ho (BETA jaisi stocks) tab OHLCV fallback milta hai.
-**Bina is key ke bhi sab chalta hai** — Screener.in + NSE + Google News + FRED key-free hain:
+**Bina Alpha key ke primary flow chalta hai** — Screener.in + NSE + Google News key-free hain; FRED ke liye alag optional `FRED_API_KEY` chahiye:
 ```toml
 ALPHA_VANTAGE_API_KEY = "YOUR_KEY"
 ```

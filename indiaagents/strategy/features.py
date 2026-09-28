@@ -24,8 +24,11 @@ def normalize_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"OHLCV columns missing: {', '.join(missing)}")
     out = df.loc[:, REQUIRED_OHLCV].copy()
-    idx = pd.to_datetime(out.index, errors="coerce", utc=True).tz_convert(None)
-    out.index = idx
+    idx = pd.to_datetime(out.index, errors="coerce")
+    # Daily exchange bars are labelled by the exchange-local session date.
+    # Converting midnight Asia/Kolkata to UTC would shift every label one day
+    # backwards; remove timezone metadata without changing the wall-date.
+    out.index = idx.tz_localize(None) if getattr(idx, "tz", None) is not None else idx
     out = out[~out.index.isna()].sort_index()
     out = out[~out.index.duplicated(keep="last")]
     for col in REQUIRED_OHLCV:

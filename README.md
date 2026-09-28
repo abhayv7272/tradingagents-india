@@ -14,7 +14,7 @@ Stock ka naam dalo → 4 Analysts + 🐂 Bull vs 🐻 Bear debate + ⚔️ **3-M
    TUM: "RELIANCE" type karo
               │
               ▼
-┌─ DATA (multi-source, 6 sources — free, no keys*) ────┐
+┌─ DATA (multi-source — free; AV/FRED keys optional) ──┐
 │ yfinance: price, indicators, financials (₹)          │
 │ Screener.in: MCap, P/E, BV, ROCE, ROE (independent)  │
 │ NSE: live quote cross-check (last/VWAP/52w)          │
@@ -62,7 +62,7 @@ Ye app **bilkul free** tumhare apne URL pe chala sakte ho — **[DEPLOY.md](DEPL
 | **Groq** (Llama 3.3 70B) | ~1000 req/day, 30 RPM | [console.groq.com/keys](https://console.groq.com/keys) | `GROQ_API_KEY` |
 | **OpenRouter** (free models) | ~50 req/day | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) | `OPENROUTER_API_KEY` |
 
-> Gemini key **must** hai (primary). Groq + OpenRouter milne se Battle Mode asli ban jata hai — teen alag model families ladti hain. Data (price/fundamentals/news) ke liye **koi key nahi chahiye**.
+> Gemini key **must** hai (primary). Groq + OpenRouter milne se Battle Mode asli ban jata hai — teen alag model families ladti hain. Yahoo/Screener/NSE/Google News/Reddit ke liye key nahi; Alpha Vantage fallback aur FRED macro ke liye optional `ALPHA_VANTAGE_API_KEY` / `FRED_API_KEY` chahiye.
 
 ## 🚀 Setup
 
@@ -164,6 +164,15 @@ At least 50 unseen OOS trades, three test windows, positive net expectancy, PF �
 ### Important data honesty
 
 Yahoo history current adjusted-data vintage hai. Strict historical splits/dividends/bonuses, delistings, symbol changes, historical sector membership aur survivorship-free universe current free sources se guarantee nahi kiye ja sakte. App is limitation ko disclose karta hai; “leak-free institutional-grade data” claim nahi karta. Official NSE/BSE bhavcopy or broker adapter future mein source protocol ke through add ho sakta hai without strategy rewrite.
+
+Har adapter structured source state deta hai: `available`, `stale`, `empty`, `unconfigured`, `network-blocked`, `rate-limited`, `parse-failed`, ya PIT `suppressed`. Isliye blocked feed ko “no news/no chatter” nahi maana jata. Streamlit Data tab aur generated reports full source-health/provenance matrix dikhate hain.
+
+```bash
+# Live reachability diagnostic (core/offline tests se separate; keys kabhi print nahi hoti)
+python scripts/check_data_sources.py --ticker RELIANCE.NS --name "Reliance Industries"
+```
+
+Deep source/fallback audit and current sandbox reachability: **[docs/DATA_SOURCE_AUDIT_2026-09-29.md](docs/DATA_SOURCE_AUDIT_2026-09-29.md)**
 
 ## ⚠️ Disclaimer
 
