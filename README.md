@@ -145,7 +145,7 @@ Microsoft Qlib ke Alpha158 approach se inspired deterministic layer (v1.2, Sep 2
 
 Retrain: `python3 scripts/train_ml_model.py` (monthly recommended; IC < 0.01 → model card auto-hide)
 Backtest: `python3 tests/backtest_quant.py` · POC: `tests/qlib_poc.py`
-Deep diagnosis: `python tests/test_diagnosis.py` — **96 tests** (lookahead-leak guard, ML determinism, regime flat/NaN guards, clamp/lock matrix, PM parse-retry wiring, report regime rows)
+Deep diagnosis: `python tests/test_diagnosis.py` — **97 tests** (lookahead-leak guard, ML determinism, regime flat/NaN guards, clamp/lock matrix, PM parse-retry wiring, report regime rows)
 
 ## 🛡️ TradeHive Layer (hard discipline — Handshakeworm/TradeHive-TradingAgents se inspired)
 
@@ -190,12 +190,14 @@ kar jo aur mila:
 - **Negation filter** — `key_risks` list se "NOT FOUND"/"None"/"N/A" entries drop
   (TradeHive `filter_reversal_signals` ka adaptation)
 
+Bands below are **% of total portfolio capital** (single-stock exposure), not % of a planned trade:
+
 | Regime | Band | |
-|---|---|---|
-| confirmed_uptrend | 75-100% | full position |
-| early_uptrend | 30-60% | probe |
-| consolidation | 0-15% | watch |
-| topping | 20-40% | trim |
-| early_downtrend | 0-10% | retreat |
-| **confirmed_downtrend** | **0%** | **hard lock** |
-| bottoming | 5-20% | small probe |
+|---|---:|---|
+| confirmed_uptrend | 10-20% | normal/full single-stock allocation |
+| early_uptrend | 5-10% | starter allocation |
+| consolidation | 0-5% | watch / small allocation |
+| topping | 0-5% | avoid fresh entry / trim |
+| early_downtrend | 0-3% | capital preservation |
+| **confirmed_downtrend** | **0%** | **hard lock on fresh entry** |
+| bottoming | 0-5% | small probe |

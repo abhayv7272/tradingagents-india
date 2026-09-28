@@ -20,7 +20,7 @@ import logging
 import yfinance as yf
 import re
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from . import memory as mem
@@ -41,6 +41,7 @@ from .report import build_report
 
 
 logger = logging.getLogger(__name__)
+IST = timezone(timedelta(hours=5, minutes=30))
 
 # TradeHive schemas.filter_reversal_signals se adapted — LLM kabhi-kabhi list mein
 # "NOT FOUND" / "None" / "N/A" type placeholder entries likh deta hai; drop karo.
@@ -79,7 +80,7 @@ class Progress:
 
 class TradingAgentsIndiaPipeline:
     def __init__(self, settings: Settings | None = None, progress_cb: Callable | None = None):
-        self.settings = settings or Settings.from_env()
+        self.settings = (settings or Settings.from_env()).validate()
         self.progress = Progress(progress_cb)
         self.engine = LLMEngine(self.settings)
         self.lang = language_instruction(self.settings.report_language)
@@ -95,10 +96,18 @@ class TradingAgentsIndiaPipeline:
         inst = resolve_ticker(user_input)
         ticker, name = inst["ticker"], inst["name"]
         P("ticker", f"✅ {name} ({ticker}) — {inst['exchange']}", "ok")
-        trade_date = trade_date or datetime.now().strftime("%Y-%m-%d")
-        if trade_date > datetime.now().strftime("%Y-%m-%d"):
-            trade_date = datetime.now().strftime("%Y-%m-%d")
-            P("ticker", "⚠️ Future date diya tha — aaj ki date par clamp kar diya", "warn")
+        today = datetime.now(IST).date()
+        if trade_date:
+            try:
+                requested_date = datetime.strptime(trade_date, "%Y-%m-%d").date()
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Analysis date YYYY-MM-DD format mein honi chahiye.") from exc
+        else:
+            requested_date = today
+        if requested_date > today:
+            requested_date = today
+            P("ticker", "⚠️ Future date diya tha — aaj ki IST date par clamp kar diya", "warn")
+        trade_date = requested_date.isoformat()
 
         # 2) data -----------------------------------------------------------
         P("data", "Price, indicators, fundamentals, news, social, macro fetch ho raha hai...")
@@ -109,8 +118,8 @@ class TradingAgentsIndiaPipeline:
         news = get_company_news(name, ticker, s.news_article_limit, trade_date)
         macro_news = get_india_macro_news(s.macro_news_limit, trade_date)
         social = get_social_chatter(name, ticker, trade_date)
-        mctx = get_market_context()
-        fred = get_fred_global_macro()
+        mctx = get_market_context(trade_date)
+        fred = get_fred_global_macro(trade_date)
         # Qlib-style quant evidence (deterministic) + earnings date
         try:
             qblock = _quant.quant_block(mkt["df"])
@@ -122,15 +131,19 @@ class TradingAgentsIndiaPipeline:
             regime = _quant.regime_state(mkt["df"])
         except Exception as e:
             logger.warning("regime skip: %s", e)
-            regime = {"regime": "consolidation", "band_lo": 0, "band_hi": 15,
+            lo, hi, _ = _quant.REGIME_BANDS["consolidation"]
+            regime = {"regime": "consolidation", "band_lo": lo, "band_hi": hi,
                       "intent": "regime engine unavailable"}
         next_result = None
-        try:
-            cal = yf.Ticker(ticker).calendar
-            ev = (cal.get("Earnings Date") or []) if isinstance(cal, dict) else []
-            next_result = str(ev[0])[:10] if ev else None
-        except Exception:
-            next_result = None
+        # Yahoo calendar is a latest snapshot, not point-in-time. Injecting it into
+        # historical runs would leak future knowledge into the backtest.
+        if requested_date == today:
+            try:
+                cal = yf.Ticker(ticker).calendar
+                ev = (cal.get("Earnings Date") or []) if isinstance(cal, dict) else []
+                next_result = str(ev[0])[:10] if ev else None
+            except Exception:
+                next_result = None
         P("data", f"✅ Data ready: price ₹{mkt['price']:,.2f} ({mkt['snapshot']['date']}), "
                   f"{len(news['items'])} news, {social['count']} social posts", "ok")
         # multi-source data-quality line (sources used + cross-check)
@@ -243,7 +256,7 @@ class TradingAgentsIndiaPipeline:
                          + f"\n\n=== DEBATE (condensed) ===\n{_condense(debate_history, 2500)}"
                          + f"\n\n=== RESEARCH MANAGER DRAFT VERDICT ===\n{draft_verdict}")
         providers = self.engine.provider_names()
-        if s.battle_mode != "off" and len(providers) >= 1 and draft_verdict:
+        if s.battle_mode != "off" and len(providers) >= 2 and draft_verdict:
             P("battle", f"⚔️ MODEL BATTLE: {len(providers)} models ek dusre ki research "
                         f"critique kar rahe hain...")
             prov_cycle = [p for p in providers] or ["gemini"]
@@ -273,6 +286,8 @@ class TradingAgentsIndiaPipeline:
                     battle_section = crit_block
         elif s.battle_mode == "off":
             P("battle", "Battle mode OFF — single-provider mode", "info")
+        else:
+            P("battle", "Battle ke liye kam se kam 2 independent providers chahiye — skip", "warn")
 
         # 7) trader ------------------------------------------------------------
         P("trader", "Trader execution plan bana raha hai...")
@@ -459,7 +474,8 @@ def _apply_regime_discipline(decision: dict, regime: dict) -> dict:
         _pos = int(float(str(_pos).replace("%", "").strip()))   # "40%" → 40, None → 0
     except (TypeError, ValueError):
         _pos = 0
-    decision["position_size_pct"] = _pos          # normalize ALWAYS (deep-diagnosis fix)
+    _pos = max(0, min(100, _pos))
+    decision["position_size_pct"] = _pos          # normalize ALWAYS
     if _pos > _hi:                      # risk cap — upper side hard clamp
         decision["position_size_pct"] = _hi
         decision["battle_notes"] = (

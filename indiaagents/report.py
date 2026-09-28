@@ -67,7 +67,16 @@ def _md(text: str) -> str:
     escaped = _re.sub(r"<(?=[a-zA-Z/!])", "&lt;", t)
     try:
         import markdown as _m
-        return _m.markdown(escaped, extensions=["tables", "fenced_code", "sane_lists"])
+        rendered = _m.markdown(escaped, extensions=["tables", "fenced_code", "sane_lists"])
+        # Markdown links can still manufacture javascript:/data: URLs even after
+        # raw tags are escaped. Allow only web/fragment links in LLM-authored text.
+        rendered = _re.sub(
+            r'''\s(href|src)=(['"])(?!https?://|#)[^'"]*\2''',
+            r' \1="#"',
+            rendered,
+            flags=_re.IGNORECASE,
+        )
+        return rendered
     except ImportError:
         # markdown lib na ho to original text pe ek hi baar escape karo
         # (escaped text pe dobara escape karne se &amp;lt; double-escape ho jata)

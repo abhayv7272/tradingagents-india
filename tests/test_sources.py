@@ -24,6 +24,9 @@ def test(fn):
     return fn
 
 
+test.__test__ = False
+
+
 def net_test(fn):
     """Network-dependent test: connection issues -> WARN (not FAIL)."""
     def wrapper():
@@ -415,7 +418,8 @@ def report_renders_data_sources_line():
 def screener_live_reliance():
     from indiaagents.data.sources import get_screener_fundamentals
     sc = get_screener_fundamentals("RELIANCE.NS", "Reliance Industries")
-    assert sc is not None, "screener.in fetch fail (cloud pe allowlist/403 check karo)"
+    if sc is None:
+        raise ConnectionError("screener.in fetch blocked/unavailable")
     assert sc["ratios"].get("market cap"), sc["ratios"]
     assert sc.get("pe") and sc.get("roce"), f"numeric keys missing: {sorted(sc)}"
 

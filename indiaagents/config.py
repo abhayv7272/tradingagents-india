@@ -195,6 +195,31 @@ class Settings:
     llm_retries: int = 3
     mock_llm: bool = False          # demo mode without API keys
 
+    def validate(self) -> "Settings":
+        """Normalize user/env settings before they reach loops or API payloads."""
+        if self.battle_mode not in {"auto", "off"}:
+            self.battle_mode = "auto"
+        if self.report_language not in {"hinglish", "english", "hindi"}:
+            self.report_language = "hinglish"
+
+        def bounded_int(value, default, low, high):
+            try:
+                return max(low, min(high, int(value)))
+            except (TypeError, ValueError):
+                return default
+
+        self.debate_rounds = bounded_int(self.debate_rounds, 2, 1, 3)
+        self.risk_rounds = bounded_int(self.risk_rounds, 1, 1, 3)
+        self.news_article_limit = bounded_int(self.news_article_limit, 15, 1, 50)
+        self.macro_news_limit = bounded_int(self.macro_news_limit, 12, 1, 50)
+        self.max_output_tokens = bounded_int(self.max_output_tokens, 3000, 256, 16000)
+        self.llm_retries = bounded_int(self.llm_retries, 3, 0, 8)
+        allowed = {"market", "social", "news", "fundamentals"}
+        self.selected_analysts = tuple(x for x in (self.selected_analysts or ()) if x in allowed)
+        if not self.selected_analysts:
+            self.selected_analysts = ("market", "fundamentals")
+        return self
+
     def as_dict(self) -> dict:
         return dict(self.__dict__)
 
@@ -212,7 +237,7 @@ class Settings:
             pass
         s.report_language = os.getenv("REPORT_LANGUAGE", s.report_language).strip().lower()
         s.mock_llm = os.getenv("MOCK_LLM", "0").strip().lower() in ("1", "true", "yes")
-        return s
+        return s.validate()
 
 
 def get_api_keys(provider: str) -> list[str]:

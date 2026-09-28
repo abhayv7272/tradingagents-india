@@ -6,7 +6,9 @@ Replaces the original repo's Alpha Vantage / SEC EDGAR (US-only) sources.
 from __future__ import annotations
 
 import math
+from datetime import datetime
 
+import pandas as pd
 import yfinance as yf
 
 from .market import inr
@@ -31,6 +33,42 @@ def _r(v, nd=2, suffix=""):
     if _m.isnan(v) or _m.isinf(v):
         return "—"
     return f"{v:.{nd}f}{suffix}"
+
+
+def _first_valid(*values):
+    """First non-null scalar; unlike ``a or b``, NaN does not win."""
+    for value in values:
+        if value is None:
+            continue
+        try:
+            if pd.isna(value):
+                continue
+        except (TypeError, ValueError):
+            continue
+        return value
+    return None
+
+
+def _asof_statement(stmt, trade_date: str | None):
+    """Exclude fiscal periods ending after the requested analysis date.
+
+    This is only a partial point-in-time guard: Yahoo does not expose the filing
+    publication timestamp, so an older period may still have been published later.
+    """
+    if stmt is None or stmt.empty or not trade_date:
+        return stmt
+    try:
+        asof = pd.Timestamp(datetime.strptime(trade_date, "%Y-%m-%d").date())
+        keep = []
+        for col in stmt.columns:
+            try:
+                if pd.Timestamp(col).tz_localize(None) <= asof:
+                    keep.append(col)
+            except (TypeError, ValueError):
+                continue
+        return stmt.loc[:, keep]
+    except (TypeError, ValueError):
+        return stmt
 
 
 def _row(stmt, name: str, idx: int = 0):
@@ -88,10 +126,13 @@ def _div_yield(info: dict) -> float | None:
 def get_fundamentals_data(ticker: str, trade_date: str | None = None) -> dict:
     """Return a compact fundamentals text block + dict of key figures."""
     t = yf.Ticker(ticker)
-    inc = t.income_stmt
-    bal = t.balance_sheet
-    cf = t.cashflow
-    info = t.info or {}
+    inc = _asof_statement(t.income_stmt, trade_date)
+    bal = _asof_statement(t.balance_sheet, trade_date)
+    cf = _asof_statement(t.cashflow, trade_date)
+    try:
+        info = t.info or {}
+    except Exception:
+        info = {}
 
     def cols(stmt):
         return [c.year if hasattr(c, "year") else str(c)[:4] for c in stmt.columns] if stmt is not None and not stmt.empty else []
@@ -99,19 +140,22 @@ def get_fundamentals_data(ticker: str, trade_date: str | None = None) -> dict:
     years = cols(inc) or cols(bal) or []
 
     revenue = _row(inc, "Total Revenue")
-    ebitda = _row(inc, "Normalized EBITDA") or _row(inc, "EBITDA")
+    ebitda = _first_valid(_row(inc, "Normalized EBITDA"), _row(inc, "EBITDA"))
     op_income = _row(inc, "Operating Income")
     net_income = _row(inc, "Net Income")
     eps = _row(inc, "Diluted EPS")
 
     total_assets = _row(bal, "Total Assets")
     total_debt = _row(bal, "Total Debt")
-    equity = _row(bal, "Stockholders Equity") or _row(bal, "Total Stockholder Equity")
-    cash = _row(bal, "Cash And Cash Equivalents") or _row(bal, "Cash Cash Equivalents And Short Term Investments")
+    equity = _first_valid(_row(bal, "Stockholders Equity"),
+                          _row(bal, "Total Stockholder Equity"))
+    cash = _first_valid(_row(bal, "Cash And Cash Equivalents"),
+                        _row(bal, "Cash Cash Equivalents And Short Term Investments"))
     current_assets = _row(bal, "Current Assets")
     current_liab = _row(bal, "Current Liabilities")
 
-    ocf = _row(cf, "Operating Cash Flow") or _row(cf, "Total Cash From Operating Activities")
+    ocf = _first_valid(_row(cf, "Operating Cash Flow"),
+                       _row(cf, "Total Cash From Operating Activities"))
     capex = _row(cf, "Capital Expenditure")
     fcf = (ocf + capex) if (ocf is not None and capex is not None) else None
     buyback = _row(cf, "Repurchase Of Capital Stock")
@@ -126,8 +170,26 @@ def get_fundamentals_data(ticker: str, trade_date: str | None = None) -> dict:
     op_margin = (op_income / revenue * 100) if (op_income is not None and revenue not in (None, 0)) else None
     mcap = info.get("marketCap")
 
+    historical_note = ""
+    if trade_date:
+        try:
+            if datetime.strptime(trade_date, "%Y-%m-%d").date() < datetime.now().date():
+                historical_note = (
+                    "\n⚠️ HISTORICAL FUNDAMENTALS LIMITATION: statement periods after the "
+                    "analysis date were removed, but Yahoo does not provide as-filed/publication "
+                    "timestamps and market-snapshot ratios are current. Do NOT treat this block "
+                    "as fully point-in-time or use it for leakage-free backtests.\n")
+        except ValueError:
+            pass
+    sector = str(info.get("sector") or "")
+    bank_note = ""
+    if "financial" in sector.lower() or "bank" in str(info.get("industry") or "").lower():
+        bank_note = ("\nBANK/NBFC NOTE: Debt-to-equity, current ratio and generic FCF are not "
+                     "comparable to industrial companies. Prefer NIM, GNPA/NNPA, PCR, CAR/CET1, "
+                     "CASA, credit cost and loan/deposit growth from exchange filings.\n")
+
     block = f"""FUNDAMENTAL DATA — {ticker} | FY years (newest first): {years[:4]}
-(Values are latest fiscal year unless noted; ₹ in Indian units)
+(Values are latest available fiscal year unless noted; ₹ in Indian units){historical_note}{bank_note}
 
 INCOME STATEMENT (latest FY):
 - Total Revenue: {_fmt_millions(revenue)}  (YoY growth: {_growth(inc, 'Total Revenue')})
@@ -152,7 +214,7 @@ MARKET SNAPSHOT:
 - P/B: {_r(info.get('priceToBook'))} | Dividend Yield: {_r(_div_yield(info), 2, '%')}
 - ROE: {_r(roe, 1, '%')} | ROA: {_r(roa, 1, '%')} | Beta (global/S&P, indicative): {_r(info.get('beta'))}
 - Sector: {info.get('sector') or '—'} | Industry: {info.get('industry') or '—'}
-- Shares Out: {info.get("sharesOutstanding") and f"{info["sharesOutstanding"] / 1e7:.2f} Cr shares" or "—"}
+- Shares Out: {f'{info["sharesOutstanding"] / 1e7:.2f} Cr shares' if info.get('sharesOutstanding') else '—'}
 
 NOTE: Financial statement data is annual (Indian FY ends March). Verify promoter
 shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't carry them."""

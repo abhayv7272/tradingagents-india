@@ -85,9 +85,10 @@ def main():
         print(f"Directional calls (BUY/SELL): {hits}/{len(dir_calls)} sahi "
               f"({hits/len(dir_calls)*100:.0f}% hit rate) — 10d alpha vs NIFTY")
     if holds:
-        alphas = [s['alpha10'] for s in holds]
-        print(f"HOLD calls: {len(holds)} | inka 10d alpha: "
-              f"{', '.join(f'{s[chr(39)+chr(39)] if False else s['ticker']}: {s['alpha10']:+.2f}%' for s in holds)}")
+        hold_alphas = ", ".join(
+            f"{s['ticker']}: {s['alpha10']:+.2f}%" for s in holds
+        )
+        print(f"HOLD calls: {len(holds)} | inka 10d alpha: {hold_alphas}")
         big = [s for s in holds if abs(s["alpha10"]) > 2]
         if big:
             print(f"⚠️ HOLD calls jinka |alpha| > 2% (missed moves): "

@@ -181,7 +181,12 @@ if run_btn and ticker_in:
             # NOTE: called from worker threads — only touch the plain list,
             # never st.* from here (Streamlit is not thread-safe).
             icon = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(ev["status"], "▶️")
-            events.append(f"{icon} [{ev['time']}] <b>{ev['stage'].upper()}</b> — {ev['detail']}")
+            # This list is later rendered with unsafe_allow_html; all external/API
+            # strings must be escaped before entering it.
+            events.append(
+                f"{icon} [{_e(ev['time'])}] <b>{_e(str(ev['stage']).upper())}</b> — "
+                f"{_e(ev['detail'])}"
+            )
 
         result_holder: dict = {}
 

@@ -63,7 +63,7 @@ POPULAR_NSE = {
     "hal": "HAL.NS", "hindustan aeronautics": "HAL.NS",
     "mazagon dock": "MAZDOCK.NS", "cochin shipyard": "COCHINSHIP.NS",
     "bhel": "BHEL.NS", "nmdc": "NMDC.NS", "sail": "SAIL.NS",
-    "ioc": "IOC.NS", "gail": "GAIL.NS", "petronet": "PETRONET.NS",
+    "gail": "GAIL.NS", "petronet": "PETRONET.NS",
     "trejhara": "TREJHARA.NS",
 }
 
@@ -110,36 +110,46 @@ def resolve_ticker(user_input: str) -> dict:
             return {"ticker": sym, "name": raw.upper(), "exchange": "INDEX",
                     "currency": "INR", "is_index": True}
 
+    known_tickers = set(POPULAR_NSE.values())
+
     # already exchange-suffixed / index / crypto-style ticker
     if any(ch in raw for ch in (".", "=", "^")):
-        info = _validate(raw)
-        if info:
-            return {"ticker": raw,
-                    "name": info.get("longName") or info.get("shortName") or raw,
-                    "exchange": info.get("exchange", "?"),
+        normalized = raw.upper()
+        info = _validate(normalized)
+        known_stems = {t.rsplit(".", 1)[0] for t in known_tickers}
+        known_exchange_symbol = (normalized.endswith((".NS", ".BO")) and
+                                 normalized.rsplit(".", 1)[0] in known_stems)
+        if info or normalized in known_tickers or known_exchange_symbol:
+            info = info or {}
+            return {"ticker": normalized,
+                    "name": info.get("longName") or info.get("shortName") or normalized,
+                    "exchange": info.get("exchange") or
+                                ("NSE" if normalized.endswith(".NS") else
+                                 "BSE" if normalized.endswith(".BO") else "?"),
                     "currency": info.get("currency", "INR"),
-                    "is_index": raw.startswith("^")}
+                    "is_index": normalized.startswith("^")}
         raise ValueError(f"'{raw}' Yahoo Finance par nahi mila. "
                          "NSE ticker + .NS try karo (e.g. RELIANCE.NS).")
 
-    # popular name map
+    # popular name map.  A known local mapping remains resolvable during a
+    # transient Yahoo outage; the actual market-data fetch still validates data.
     if key in POPULAR_NSE:
         cand = POPULAR_NSE[key]
-        info = _validate(cand)
-        if info:
-            return {"ticker": cand,
-                    "name": info.get("longName") or info.get("shortName") or raw,
-                    "exchange": info.get("exchange", "NSE"),
-                    "currency": info.get("currency", "INR"),
-                    "is_index": False}
+        info = _validate(cand) or {}
+        return {"ticker": cand,
+                "name": info.get("longName") or info.get("shortName") or raw.strip().upper(),
+                "exchange": info.get("exchange", "NSE"),
+                "currency": info.get("currency", "INR"),
+                "is_index": False}
 
     # try .NS then .BO
     for suffix, exch in ((".NS", "NSE"), (".BO", "BSE")):
         cand = f"{raw.upper()}{suffix}"
         info = _validate(cand)
-        if info:
+        if info or cand in known_tickers:
+            info = info or {}
             return {"ticker": cand,
-                    "name": info.get("longName") or info.get("shortName") or raw,
+                    "name": info.get("longName") or info.get("shortName") or raw.upper(),
                     "exchange": info.get("exchange", exch),
                     "currency": info.get("currency", "INR"),
                     "is_index": False}
@@ -284,7 +294,11 @@ def get_market_data(ticker: str, trade_date: str | None = None,
 
     close = df["Close"]
     last = float(close.iloc[-1])
-    info = t.info or {}
+    try:
+        info = t.info or {}
+    except Exception:
+        # Price history can work while Yahoo's quote-summary endpoint is blocked.
+        info = {}
 
     # ── MULTI-SOURCE CROSS-CHECK: NSE + AlphaVantage live quote vs yahoo last ──
     price_sources = [data_source if data_source != "yahoo" else "yfinance"]
@@ -321,8 +335,11 @@ def get_market_data(ticker: str, trade_date: str | None = None,
             nb = nb[nb.index <= pd.Timestamp(asof)]
             j = pd.concat([close, nb["Close"]], axis=1, keys=["s", "n"]).dropna().tail(120)
             if len(j) >= 60:
-                both = j.pct_change().dropna()
-                beta_nifty = round(float(both["s"].cov(both["n"]) / both["n"].var()), 2)
+                both = j.pct_change(fill_method=None).dropna()
+                bench_var = float(both["n"].var())
+                if math.isfinite(bench_var) and bench_var > 1e-12:
+                    beta = float(both["s"].cov(both["n"]) / bench_var)
+                    beta_nifty = round(beta, 2) if math.isfinite(beta) else None
     except Exception:
         beta_nifty = None
     # Bollinger

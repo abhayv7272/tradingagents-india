@@ -78,14 +78,18 @@ def compute_factors(df: pd.DataFrame) -> pd.DataFrame:
 # REGIME ENGINE — TradeHive "hard discipline" se inspired (India-adapted)
 # 7-regime state + position bands. DETERMINISTIC hai — LLM isse argue nahi,
 # sirf respect karta hai (code clamp backstop hai).
+# Percent of TOTAL portfolio capital, not "% of a planned trade".  The old
+# 75-100% uptrend band accidentally encouraged single-stock concentration while
+# the report labelled the number "% capital".  These caps are deliberately
+# portfolio-safe defaults; a user's suitability/liquidity constraints may be lower.
 REGIME_BANDS = {
-    "confirmed_uptrend":   (75, 100, "strong trend — full position allowed"),
-    "early_uptrend":       (30, 60,  "trend confirm ho raha hai — probe position"),
-    "consolidation":       (0, 15,   "range-bound — watch karo, mat kharido"),
-    "topping":             (20, 40,  "top zone — profit book / trim"),
-    "early_downtrend":     (0, 10,   "trend bigad raha hai — retreat"),
-    "confirmed_downtrend": (0, 0,    "confirmed downtrend — NO position (hard lock)"),
-    "bottoming":           (5, 20,   "bottom fishing — sirf small probe"),
+    "confirmed_uptrend":   (10, 20, "strong trend — normal/full single-stock allocation allowed"),
+    "early_uptrend":       (5, 10,  "trend confirm ho raha hai — starter allocation"),
+    "consolidation":       (0, 5,   "range-bound — watch ya small allocation"),
+    "topping":             (0, 5,   "top zone — fresh allocation avoid / existing position trim"),
+    "early_downtrend":     (0, 3,   "trend bigad raha hai — capital preservation"),
+    "confirmed_downtrend": (0, 0,   "confirmed downtrend — no fresh position (hard lock)"),
+    "bottoming":           (0, 5,   "bottom fishing — sirf small probe"),
 }
 
 
@@ -94,7 +98,8 @@ def regime_state(df: pd.DataFrame) -> dict:
     Returns {regime, band_lo, band_hi, intent, conditions, score}."""
     c = df["Close"]
     if len(c) < 210:
-        return {"regime": "consolidation", "band_lo": 0, "band_hi": 15,
+        lo, hi, _ = REGIME_BANDS["consolidation"]
+        return {"regime": "consolidation", "band_lo": lo, "band_hi": hi,
                 "intent": "insufficient history — conservative default",
                 "conditions": {}, "bull_of6": 0, "bear_of6": 0}
     price = float(c.iloc[-1])
