@@ -14,28 +14,24 @@ Ye Streamlit company ka **official free hosting** hai jo GitHub se direct connec
 
 ### Step-by-step (15 minute ka kaam):
 
-**Step 1 — GitHub account + repo:**
-1. [github.com/signup](https://github.com/signup) se free account banao (agar already hai to skip)
-2. GitHub par **New repository** → naam do: `tradingagents-india` → **Private** select karo (better) → Create
+**Step 1 — GitHub code ready karo:**
+1. Repository: **`abhayv7272/tradingagents-india`**.
+2. PR #2 merge hone ke baad hi Streamlit ko production branch **`main`** se deploy/reboot karo. Arena feature branch ko permanent production branch mat banao.
+3. Root mein `app.py` aur `requirements.txt`, aur repository mein `indiaagents/models/ml_score_v1.joblib` + `ml_calib_v1.json` present hone chahiye.
+4. ⚠️ `.env` aur `.streamlit/secrets.toml` GitHub par commit mat karo; dono `.gitignore` mein hain.
 
-**Step 2 — Code upload karo:**
-1. Workspace se **`tradingagents-india.zip`** download karo (ye maine bana di hai)
-2. Zip ko apne computer par extract karo
-3. GitHub repo page par **"uploading an existing file"** link pe click karo
-4. Saari files/folders drag-drop kar do: **`app.py`, `run.py`, `requirements.txt`, `.gitignore`, `README.md`, `DEPLOY.md`, `indiaagents/` (⚠️ `indiaagents/models/` folder ZAROORI hai — `ml_score_v1.joblib` + `ml_calib_v1.json` — bina iske ML Quant Score card nahi dikhega), `scripts/`, `tests/`, docs**
-5. ⚠️ **`.env` file upload MAT karo** — usme tumhari API keys hain! (zip mein bhi nahi hai, don't worry)
-6. **Commit changes** dabao
-
-**Step 3 — Streamlit Cloud par deploy:**
+**Step 2 — Streamlit Community Cloud par deploy:**
 1. [share.streamlit.io](https://share.streamlit.io) kholo → **"Sign in with GitHub"**
 2. Email continue karo (free, credit card NAHI maangta)
 3. **"New app"** / **"Create app"** dabao
-4. Select karo:
-   - **Repository:** `<tumhara-username>/tradingagents-india`
+4. Exact values select karo:
+   - **Repository:** `abhayv7272/tradingagents-india`
    - **Branch:** `main`
    - **Main file path:** `app.py`
-   - **Advanced settings → Python version:** `3.12` (recommended)
-5. **Secrets** section mein (ye tumhari keys ka safe jagah hai) ye paste karo:
+   - **Advanced settings → Python version:** `3.11`
+
+   Streamlit ka current default Python 3.12 ho sakta hai, isliye Advanced settings mein **3.11 manually select karna zaroori hai**. Project aur bundled sklearn model Python 3.11 environment mein verified hain.
+5. **Secrets** section mein (ye tumhari keys ka safe jagah hai) sirf jo providers use karne hain unki values paste karo:
 
 ```toml
 GOOGLE_API_KEYS = "key1,key2,key3,key4,key6,key7,key8"
@@ -43,10 +39,11 @@ NVIDIA_API_KEY = "nvapi-..."
 MISTRAL_API_KEY = "mstrl_..."
 GROQ_API_KEY = "gsk-..."
 OPENROUTER_API_KEY = "sk-or-..."
-FRED_API_KEY = "..."
+ALPHA_VANTAGE_API_KEY = "..."  # optional OHLCV fallback
+FRED_API_KEY = "..."           # optional global macro
 ```
 
-   (Gemini keys comma se separate — pool rotation automatic chalega. Values ko apni asli keys se replace karna! **`GROQ_API_KEY` ab zaroori hai** — Groq gpt-oss-120b free provider hai.)
+   Gemini keys comma se separate kar sakte ho; pool rotation automatic hai. Real AI run ke liye kam-se-kam ek supported LLM provider key chahiye. Groq, Alpha Vantage aur FRED individually optional hain. Keys kabhi chat, code, logs ya public repo mein paste mat karo.
 
 6. **Deploy!** dabao
 7. 2-5 minute wait karo — app build hoga aur **tumhara personal URL** ready! 🎉
@@ -119,7 +116,7 @@ Bilkul! Same code, same keys, dono jagah chalega.
 3. Agar kabhi keys leak hone ka shaq ho, rotate kar do:
    - Gemini: [aistudio.google.com/apikey](https://aistudio.google.com/apikey) → delete + nayi banao
    - NVIDIA/Mistral/OpenRouter: unke consoles se
-4. Gemini ki 7 working keys tumhare `.env` (sandbox) mein hain — wahi values Streamlit Secrets mein daalna
+4. Existing secret values ko reveal, download, log ya chat mein share mat karo; zaroorat ho to provider console se rotate karo.
 
 ## Optional: extra FREE providers (zyada capacity + battle diversity)
 
@@ -161,13 +158,17 @@ Streamlit Community Cloud normally `main` merge detect karke auto-redeploy kareg
 
 Verification checklist:
 
+- Streamlit app settings still show repository `abhayv7272/tradingagents-india`, branch `main`, entrypoint `app.py`, Python `3.11`.
+- Build logs complete `requirements.txt` installation without dependency conflict or missing module; first page render has no red exception box.
+- App opens on its `*.streamlit.app` URL and Streamlit health endpoint `/_stcore/health` returns `ok`.
 - Sidebar: Existing holding, average price, quantity, capital, max 1% risk, max allocation, horizon and risk profile.
 - Current setup tab: detailed action, ACTIVE/WAITING, exact trigger/zone, structure stop reason, T1/T2, R:R, integer quantity and max loss.
 - Fresh user + incomplete setup displays `WAIT`, not `HOLD`.
 - Why this action tab separates deterministic reasons/limitations from AI commentary.
 - Historical evidence does **not** auto-run. Explicit button opens period/cost/window/setup controls, then shows equity, drawdown, trades and grouped performance.
 - Insufficient/diversity-failing evidence displays `NO VALIDATED EDGE`; it must not invent 50 trades.
+- Data tab → Source health/provenance distinguishes `available`, `empty`, `unconfigured`, `network-blocked`, `rate-limited`, `parse-failed`, `stale` and historical `suppressed`. For a current successful run, selected OHLCV must be `available`; do not accept an apparent report built from missing critical price data.
 - Downloaded Markdown/HTML shows deterministic output first and AI commentary separately.
-- Demo mode remains usable without LLM keys. A historical backtest still needs reachable market-data sources.
+- Demo mode remains usable without LLM keys, but it still needs reachable real market-data sources. A historical backtest also needs reachable OHLCV sources.
 
 Historical performance is not a guarantee of future returns.
