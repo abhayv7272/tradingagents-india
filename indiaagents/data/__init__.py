@@ -9,3 +9,6 @@ __all__ = [
     "get_company_news", "get_india_macro_news", "get_social_chatter",
     "get_market_context", "get_fred_global_macro",
 ]
+
+from .adapters import CompositeOHLCVSource, DataProvenance, OHLCVResult, YahooOHLCVSource
+__all__ += ["CompositeOHLCVSource", "DataProvenance", "OHLCVResult", "YahooOHLCVSource"]

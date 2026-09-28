@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import pandas as pd
 import yfinance as yf
 import re
 import threading
@@ -40,6 +41,9 @@ from .config import language_instruction
 from .report import build_report
 from .validation import (
     apply_quality_guard, apply_trade_guard, assess_data_quality, quality_block,
+)
+from .strategy import (
+    DetailedAction, DeterministicStrategyEngine, PortfolioInputs, sector_index_for,
 )
 
 
@@ -90,9 +94,15 @@ class TradingAgentsIndiaPipeline:
         self.decision_log = mem.DecisionLog()
 
     # ------------------------------------------------------------------
-    def run(self, user_input: str, trade_date: str | None = None) -> dict:
+    def run(self, user_input: str, trade_date: str | None = None,
+            portfolio_inputs: PortfolioInputs | dict | None = None) -> dict:
         s = self.settings
         P = self.progress.emit
+        if isinstance(portfolio_inputs, dict):
+            allowed = PortfolioInputs.__dataclass_fields__
+            portfolio = PortfolioInputs(**{k: v for k, v in portfolio_inputs.items() if k in allowed}).validated()
+        else:
+            portfolio = (portfolio_inputs or PortfolioInputs()).validated()
 
         # 1) resolve ticker -------------------------------------------------
         P("ticker", f"'{user_input}' resolve kar rahe hain (NSE/BSE)...")
@@ -172,6 +182,47 @@ class TradingAgentsIndiaPipeline:
         P("data", f"Evidence quality: {quality['score']}/100 ({quality['level']})",
           quality_status)
 
+        # Deterministic strategy is computed before any final LLM decision.  The
+        # result is later locked over the PM's entry/stop/target/size fields.
+        sector_symbol = sector_index_for(ticker, mkt["snapshot"].get("sector"))
+        sector_df = None
+        if sector_symbol:
+            try:
+                _start = mkt["df"].index[0].date().isoformat()
+                _end = (mkt["df"].index[-1] + pd.Timedelta(days=1)).date().isoformat()
+                sector_df = yf.Ticker(sector_symbol).history(
+                    start=_start, end=_end, interval="1d", auto_adjust=True,
+                )
+                if not sector_df.empty:
+                    sector_df.index = sector_df.index.tz_localize(None)
+            except Exception as e:
+                logger.warning("sector relative-strength source unavailable: %s", e)
+                sector_df = None
+        _strategy_limits = list(quality.get("issues") or [])
+        _strategy_limits.extend([
+            "Yahoo adjusted history is a current data vintage, not immutable point-in-time data",
+            "current-universe survivorship, delistings and historical sector membership are unresolved",
+        ])
+        strategy_plan = None
+        try:
+            strategy_plan = DeterministicStrategyEngine().analyze(
+                mkt["df"], as_of=trade_date, portfolio=portfolio,
+                nifty=mkt.get("benchmark_df"), sector=sector_df,
+                sector_symbol=sector_symbol, evidence=None,
+                data_limitations=_strategy_limits, event_date=next_result,
+            )
+            if quality.get("hard_block"):
+                strategy_plan.action = DetailedAction.REVIEW
+                strategy_plan.legacy_action = "HOLD"
+                strategy_plan.deterministic_reasons.append(
+                    "data-quality hard block forces REVIEW; no fresh deterministic trade"
+                )
+            P("strategy", f"Deterministic {strategy_plan.action.value}: "
+                          f"{strategy_plan.setup_name} ({strategy_plan.signal_state.value})", "ok")
+        except Exception as e:
+            logger.exception("deterministic strategy failed closed")
+            P("strategy", f"Deterministic engine unavailable — REVIEW: {str(e)[:100]}", "error")
+
         price = mkt["price"]
         company_block = (
             f"COMPANY: {name} | Ticker: {ticker} ({inst['exchange']}) | "
@@ -180,6 +231,7 @@ class TradingAgentsIndiaPipeline:
             + (f" | Next results: ~{next_result}" if next_result else "")
             + f"\n{quality_text}"
         )
+        strategy_prompt = _deterministic_prompt(strategy_plan)
 
         # memory ------------------------------------------------------------
         past = self.decision_log.past_decisions(ticker)
@@ -314,6 +366,7 @@ class TradingAgentsIndiaPipeline:
                 f"band: {regime['band_lo']}-{regime['band_hi']}% — plan is regime se "
                 f"aligned hona chahiye.\n\n"
                 f"=== FINAL RESEARCH VERDICT ===\n{final_research}\n\n"
+                f"{strategy_prompt}\n\n"
                 f"=== KEY PRICE DATA ===\n{mkt['indicator_block'][:1500]}\n\n"
                 + (f"=== QUANT SNAPSHOT ===\n{qblock}\n\n" if qblock else "")
                 + f"{past_ctx}")
@@ -353,7 +406,8 @@ class TradingAgentsIndiaPipeline:
         # 9) portfolio manager — FINAL DECISION --------------------------------
         P("final", "Portfolio Manager final decision le raha hai...")
         decision = None
-        pm_user = (f"{company_block}\n\n=== FINAL RESEARCH VERDICT (post-battle) ===\n"
+        pm_user = (f"{company_block}\n\n{strategy_prompt}\n\n"
+                   f"=== FINAL RESEARCH VERDICT (post-battle) ===\n"
                    f"{final_research}\n\n=== TRADER PLAN ===\n{trader_plan}\n\n"
                    f"=== RISK TEAM VIEWS ===\n{risk_block}\n\n{past_ctx}\n\n"
                    + (f"=== QUANT SNAPSHOT (deterministic anchor) ===\n{qblock}\n\n" if qblock else "")
@@ -425,6 +479,30 @@ class TradingAgentsIndiaPipeline:
             }
             P("final", "❌ PM fail — safe HOLD fallback used", "error")
 
+        # LLM rationale is preserved separately, but deterministic economics and
+        # the detailed action are immutable from this point onward.
+        ai_decision = json.loads(json.dumps(decision, ensure_ascii=False, default=str))
+        deterministic = strategy_plan.to_dict() if strategy_plan is not None else {
+            "as_of": trade_date, "action": "REVIEW", "legacy_action": "HOLD",
+            "setup_name": "Unavailable", "signal_state": "INVALID",
+            "trigger": "Deterministic engine failed; do not trade", "trigger_price": None,
+            "entry_zone": None, "confirmations": [],
+            "missing_confirmations": ["deterministic engine output unavailable"],
+            "invalidation": "not available", "initial_stop": None,
+            "stop_reason": "not available", "target_1": None, "target_2": None,
+            "reward_risk": None, "quantity": 0, "allocation_rupees": 0,
+            "allocation_pct": 0, "max_loss_rupees": 0,
+            "max_portfolio_loss_pct": 0, "trailing_rule": "not available",
+            "early_exit_rules": [], "time_stop_sessions": 0,
+            "support_zones": [], "resistance_zones": [], "relative_strength": {},
+            "weekly": {}, "daily": {}, "deterministic_reasons": ["fail-closed REVIEW"],
+            "limitations": _strategy_limits,
+            "evidence": {"status": "BACKTEST NOT AVAILABLE", "validated_edge": False,
+                         "trades": 0, "walk_forward_windows": 0, "reasons": []},
+            "config_version": "deterministic-v1",
+        }
+        decision = _lock_deterministic_decision(decision, deterministic, portfolio)
+
         # 10) report ------------------------------------------------------------
         P("report", "Report generate ho rahi hai...")
         result = {
@@ -434,7 +512,9 @@ class TradingAgentsIndiaPipeline:
             "debate": debate_history, "draft_verdict": draft_verdict,
             "battle_critiques": battle_section, "final_research": final_research,
             "trader_plan": trader_plan, "risk_views": risk_block,
-            "decision": decision, "memory": past_ctx,
+            "decision": decision, "ai_decision": ai_decision,
+            "deterministic": deterministic, "portfolio_inputs": portfolio.__dict__,
+            "backtest": None, "memory": past_ctx,
             "quant": qinfo, "next_results": next_result,
             "data_quality": quality,
             "news_block": news["news_block"], "macro_news_block": macro_news["macro_news_block"],
@@ -487,6 +567,58 @@ class TradingAgentsIndiaPipeline:
         P("report", f"✅ Report save ho gayi: {paths['md']}", "ok")
         result["paths"] = paths
         return result
+
+
+def _deterministic_prompt(plan) -> str:
+    if plan is None:
+        return ("DETERMINISTIC STRATEGY: unavailable — action REVIEW. "
+                "You may explain risks only; do not invent levels or statistics.")
+    z = plan.entry_zone
+    zone = f"₹{z.low:,.2f}–₹{z.high:,.2f}" if z else "unavailable"
+    return (
+        "=== DETERMINISTIC STRATEGY (CODE AUTHORITY — DO NOT OVERRIDE) ===\n"
+        f"Detailed action: {plan.action.value} | setup: {plan.setup_name} | "
+        f"state: {plan.signal_state.value}\n"
+        f"Trigger: {plan.trigger}\nEntry zone: {zone} | stop: "
+        f"{('₹' + format(plan.initial_stop, ',.2f')) if plan.initial_stop else 'unavailable'} | "
+        f"T1/T2: {plan.target_1}/{plan.target_2} | quantity: {plan.quantity}\n"
+        f"Evidence: {plan.evidence.status}. LLM role is explanation/bull-bear critique only; "
+        "entry, stop, targets, size, action and backtest statistics are immutable code output."
+    )
+
+
+def _lock_deterministic_decision(decision: dict, plan: dict,
+                                 portfolio: PortfolioInputs) -> dict:
+    """Legacy decision compatibility with deterministic fields as authority."""
+    d = dict(decision)
+    d["ai_proposed_decision"] = decision.get("decision")
+    d["ai_confidence"] = decision.get("confidence")
+    d["confidence_kind"] = "legacy_ai_commentary_only_not_strategy_confidence"
+    d["detailed_action"] = plan["action"]
+    d["decision"] = plan["legacy_action"]
+    d["rating"] = plan["action"].title()
+    zone = plan.get("entry_zone")
+    d["entry_zone"] = (f"₹{zone['low']:,.2f}–₹{zone['high']:,.2f}" if zone else "—")
+    t1, t2 = plan.get("target_1"), plan.get("target_2")
+    d["target"] = (f"T1 ₹{t1:,.2f} · T2 ₹{t2:,.2f}" if t1 is not None and t2 is not None else "—")
+    stop = plan.get("initial_stop")
+    d["stop_loss"] = f"₹{stop:,.2f}" if stop is not None else "—"
+    d["position_size_pct"] = int(float(plan.get("allocation_pct") or 0))
+    d["quantity"] = int(plan.get("quantity") or 0)
+    d["timeframe"] = portfolio.horizon
+    d["rationale"] = "; ".join(plan.get("deterministic_reasons") or [])
+    d["trade_validation"] = {
+        "verified": all(x is not None for x in (stop, t1, t2)) and zone is not None,
+        "valid": plan.get("signal_state") != "INVALID",
+        "rr": plan.get("reward_risk"),
+        "levels": {"entry": zone, "target_1": t1, "target_2": t2, "stop": stop},
+        "max_loss_pct": portfolio.max_risk_pct,
+        "notes": ["locked by deterministic-v1; LLM proposal cannot override"],
+    }
+    d["battle_notes"] = ((d.get("battle_notes") or "").rstrip()
+                         + " | 🔒 DETERMINISTIC LOCK: AI proposal retained only as commentary; "
+                           "action/entry/stop/targets/quantity are code-owned.").strip(" |")
+    return d
 
 
 def _condense(text: str, max_chars: int) -> str:

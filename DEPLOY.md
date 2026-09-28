@@ -147,3 +147,27 @@ jab Yahoo ka data na mile / short ho (BETA jaisi stocks) tab OHLCV fallback milt
 ```toml
 ALPHA_VANTAGE_API_KEY = "YOUR_KEY"
 ```
+
+---
+
+## 🔄 Deterministic engine merge ke baad reboot/redeploy
+
+Streamlit Community Cloud normally `main` merge detect karke auto-redeploy karega. Manual reboot:
+
+1. `share.streamlit.io` kholo and **tradingagents-india** app select karo.
+2. **Settings → Reboot app** click karo. Agar build stale ho, **Settings → Clear cache** then reboot.
+3. Repository `abhayv7272/tradingagents-india`, branch `main`, main file `app.py`, Python `3.11` hi rehne do.
+4. Existing Secrets ko edit/reveal/share mat karo; deterministic engine ko koi nayi key nahi chahiye.
+
+Verification checklist:
+
+- Sidebar: Existing holding, average price, quantity, capital, max 1% risk, max allocation, horizon and risk profile.
+- Current setup tab: detailed action, ACTIVE/WAITING, exact trigger/zone, structure stop reason, T1/T2, R:R, integer quantity and max loss.
+- Fresh user + incomplete setup displays `WAIT`, not `HOLD`.
+- Why this action tab separates deterministic reasons/limitations from AI commentary.
+- Historical evidence does **not** auto-run. Explicit button opens period/cost/window/setup controls, then shows equity, drawdown, trades and grouped performance.
+- Insufficient/diversity-failing evidence displays `NO VALIDATED EDGE`; it must not invent 50 trades.
+- Downloaded Markdown/HTML shows deterministic output first and AI commentary separately.
+- Demo mode remains usable without LLM keys. A historical backtest still needs reachable market-data sources.
+
+Historical performance is not a guarantee of future returns.

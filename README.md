@@ -40,9 +40,10 @@ Stock ka naam dalo → 4 Analysts + 🐂 Bull vs 🐻 Bear debate + ⚔️ **3-M
 │ banata hai. (Different AI = different biases!)       │
 └──────────────────────┬───────────────────────────────┘
                        ▼
-┌─ TRADER → entry/target/stop-loss/size ───────────────┐
+┌─ DETERMINISTIC ENGINE → setup/entry/SL/targets/size ─┐
+│  (daily+weekly+pivots+RS; LLM sirf explanation)      │
 ┌─ RISK TEAM: 😤 Aggressive ⟷ 🛡️ Conservative ⟷ 😐 Neutral ┐
-┌─ PORTFOLIO MANAGER → 🎯 FINAL DECISION (JSON) ───────┐
+┌─ PORTFOLIO MANAGER → commentary; code action LOCK ───┐
 └──────────────────────┬───────────────────────────────┘
                        ▼
        📄 reports/RELIANCE.NS_<date>/report.md + report.html
@@ -106,9 +107,67 @@ Ek full run ≈ 18-25 LLM calls leta hai (free quota mein easily fit). Report `r
 | Interface | Terminal CLI | Web dashboard + CLI |
 | Report | English | Hinglish 🎉 |
 
+## 🧭 Deterministic Strategy + Walk-Forward Backtest
+
+`deterministic-v1` mein **LLM trade economics decide nahi karta**. Historical OHLCV, completed-week candles, confirmed pivots, ATR zones, volume, NIFTY/sector relative strength aur regime se code ye fields calculate karta hai:
+
+- detailed action: `ENTER / ADD / HOLD / WAIT / TRIM / EXIT / REVIEW`;
+- active/waiting setup and exact close/volume/RS trigger;
+- entry zone, structure+ATR stop and stop reason;
+- T1/T2, R:R, partial exits, chandelier trail and time stop;
+- integer quantity, allocation and maximum portfolio loss.
+
+Fresh investor ke liye incomplete setup **WAIT** hai; `HOLD` sirf existing holding ke liye hai. Active occurrence bhi `ENTER` nahi banta jab tak universe-level OOS acceptance gate pass na ho. Single-stock result ko stock-specific occurrences bola jata hai—50 trades ya diversification fabricate nahi hoti.
+
+Implemented setups:
+
+1. weekly-trend breakout;
+2. breakout retest;
+3. trend pullback;
+4. range breakout / volatility contraction;
+5. bottoming reversal probe (small allocation, multiple confirmations).
+
+Backtester signal close ke baad banata hai, earliest next session execute karta hai, gap-through-stop ko open par fill karta hai, ambiguous stop+target candle mein adverse ordering use karta hai, partial exits/trailing/time stop process karta hai aur every fill/reason store karta hai. Indian delivery cost assumptions (brokerage, STT, exchange/SEBI charges, GST, stamp duty, slippage, optional impact) configurable hain; **net return after costs** primary hai.
+
+### UI
+
+1. Sidebar mein existing holding, average price, quantity, capital, max risk (safe default 1%), max allocation, horizon aur risk profile set karo.
+2. Research button deterministic current setup banata hai; expensive backtest automatically run nahi hota.
+3. **Historical evidence** tab mein period/cost/window/setup settings choose karke explicit walk-forward button dabao.
+4. Equity/drawdown, fills/trades, setup/regime tables aur `VALIDATED EDGE` / `NO VALIDATED EDGE` gate dekho.
+
+### CLI
+
+```bash
+# Fresh investor (incomplete setup => WAIT)
+python run.py RELIANCE --mock --capital 100000 --max-risk 1 --max-allocation 15
+
+# Existing holding context
+python run.py TCS --existing-holding --average-buy-price 3500 --quantity 10 \
+  --capital 500000 --horizon positional --risk-profile conservative
+
+# Explicit, cost-aware OOS walk-forward run (network history required)
+python run.py INFY --mock --walk-forward --backtest-years 10
+
+# Fully offline deterministic mechanics check (synthetic data is NOT edge evidence)
+python scripts/synthetic_backtest.py
+```
+
+Detailed methodology, cost table and integrity limits: **[docs/BACKTEST_METHODOLOGY.md](docs/BACKTEST_METHODOLOGY.md)**
+
+Delivery/status checklist: **[docs/DETERMINISTIC_ENGINE_CHECKLIST.md](docs/DETERMINISTIC_ENGINE_CHECKLIST.md)**
+
+### Acceptance gate defaults
+
+At least 50 unseen OOS trades, three test windows, positive net expectancy, PF ≥1.20, max drawdown ≤25%, three stocks and two regimes. Any failed condition returns **NO VALIDATED EDGE** and no forced fresh entry.
+
+### Important data honesty
+
+Yahoo history current adjusted-data vintage hai. Strict historical splits/dividends/bonuses, delistings, symbol changes, historical sector membership aur survivorship-free universe current free sources se guarantee nahi kiye ja sakte. App is limitation ko disclose karta hai; “leak-free institutional-grade data” claim nahi karta. Official NSE/BSE bhavcopy or broker adapter future mein source protocol ke through add ho sakta hai without strategy rewrite.
+
 ## ⚠️ Disclaimer
 
-Ye project **educational research** ke liye hai — financial/investment advice **nahi**. AI models galat ho sakte hain (especially free-tier). SEBI-registered advisor ki salah ka replacement nahi hai. Apna research karo, apna risk lo.
+Ye project **educational research** ke liye hai — financial/investment advice **nahi**. Historical performance future returns ki guarantee nahi hai. AI models galat ho sakte hain (especially free-tier). SEBI-registered advisor ki salah ka replacement nahi hai. Apna research karo, apna risk lo.
 
 ## 🙏 Credits
 

@@ -335,7 +335,10 @@ def get_market_data(ticker: str, trade_date: str | None = None,
     vol20 = float(df["Volume"].rolling(20).mean().iloc[-1]) if len(df) >= 20 else float(df["Volume"].mean())
     vwma20 = float((close * df["Volume"]).rolling(20).sum().iloc[-1] / df["Volume"].rolling(20).sum().iloc[-1]) if len(df) >= 20 else None
     # Beta vs NIFTY (Yahoo ka beta S&P500 ke against hai — NSE stocks ke liye misleading)
+    # Keep the aligned benchmark frame as well: the deterministic strategy layer
+    # reuses it for relative strength instead of making another hidden download.
     beta_nifty = None
+    nb = None
     try:
         nb = yf.Ticker("^NSEI").history(start=start, end=end, interval="1d", auto_adjust=True)
         if not nb.empty:
@@ -437,5 +440,6 @@ Date | Open | High | Low | Close | Volume
     }
     return {"indicator_block": ind_block, "snapshot": snapshot, "df": df,
             "close": close, "price": last, "info": info,
+            "benchmark_df": nb if nb is not None and not nb.empty else None,
             "data_source": data_source, "price_sources": price_sources,
             "data_quality": data_quality}

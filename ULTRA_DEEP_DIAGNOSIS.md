@@ -142,3 +142,31 @@ The first P0 follow-up is now implemented as code rather than prompt advice:
 ## Bottom line
 
 After this patch the code compiles, the bundled model loads under its compatible dependency, historical macro leakage is substantially reduced, portfolio caps are safer, and several security/availability problems are fixed. The app is suitable as an **educational research assistant**, but its output should not be marketed as validated trading accuracy. The next highest-value milestone is a timestamped, point-in-time Indian filings dataset plus a cost-aware, survivorship-safe walk-forward backtest.
+
+---
+
+## Deterministic strategy / walk-forward implementation (September 2026)
+
+The audit's highest-priority technical milestone is now implemented end-to-end in `indiaagents.strategy` and `indiaagents.backtest`.
+
+### What changed
+
+- Daily plus **completed-week-only** feature frames; no partial future-Friday candle is exposed.
+- Confirmed daily/weekly pivots carry separate pivot and right-bar confirmation dates. ATR-clustered zones include touches, recency, completed prior week/month levels and recent unfilled gaps.
+- Stock/NIFTY and maintainable stock/sector relative strength provides 1M/3M/6M spread, ratio slope and regime agreement. Missing mappings/data remain `unavailable`.
+- Five non-forced deterministic setups produce `ENTER/ADD/HOLD/WAIT/TRIM/EXIT/REVIEW`, exact triggers/zones, structure+ATR stops, T1/T2, exits and integer size.
+- The pipeline stores the LLM proposal as `ai_decision`, then applies a deterministic lock. LLM economics cannot enter the primary `deterministic` result or overwrite report/UI levels.
+- Reusable event-driven simulator implements next-session orders, adverse same-bar ordering, realistic gap-stop opens, partials, trailing/time/trend/RS exits and a reasoned fill ledger.
+- Indian delivery-market cost components, net OOS metrics, grouped performance, fixed-seed bootstrap intervals, embargoed walk-forward boundaries and a strict acceptance gate are code, not generated prose.
+- Streamlit has portfolio inputs and four required concerns: current setup, historical evidence, action reasons and explicit settings. Backtests use an explicit cached button, not widget-triggered downloads.
+- Source protocols allow official bhavcopy/broker implementations later. Current Yahoo provenance explicitly discloses adjusted-vintage, corporate-action, survivorship, delisting, symbol and sector-membership limitations.
+
+### Honesty boundary retained
+
+This implementation fixes rule/execution look-ahead in code, but it cannot transform Yahoo's present-day adjusted history into an immutable historical vintage or manufacture a delisting-complete universe. Consequently a single-symbol run is labelled stock-specific and cannot pass universe diversity. `NO VALIDATED EDGE` remains the default until every gate condition passes on genuine unseen windows after costs.
+
+Detailed methodology: [`docs/BACKTEST_METHODOLOGY.md`](docs/BACKTEST_METHODOLOGY.md).
+
+Status/external-data checklist: [`docs/DETERMINISTIC_ENGINE_CHECKLIST.md`](docs/DETERMINISTIC_ENGINE_CHECKLIST.md).
+
+Historical performance is not a guarantee of future returns.
