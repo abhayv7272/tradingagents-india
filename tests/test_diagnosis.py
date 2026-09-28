@@ -623,7 +623,7 @@ def macro_fred_block():
     f = get_fred_global_macro()
     b = f["fred_block"]
     assert "GLOBAL MACRO" in b
-    assert "Fed Funds" in b or "unavailable" in b
+    assert "Fed Funds" in b or "unavailable" in b or "unconfigured" in b
 
 
 # ======================================================================

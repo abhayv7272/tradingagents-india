@@ -17,8 +17,8 @@ DISCLAIMER_MD = (
     "> ⚠️ **Disclaimer:** Ye report ek AI research simulation hai — **financial/investment "
     "advice NAHI**. Ye SEBI-registered advisor ki salah ka replacement nahi hai. Stock "
     "market mein risk hota hai; apna paisa lagane se pehle khud research karo aur zaroorat "
-    "ho toh licensed advisor se baat karo. Free-tier AI models use hue hain, isliye accuracy "
-    "ki koi guarantee nahi."
+    "ho toh licensed advisor se baat karo. Historical performance future returns ki guarantee "
+    "nahi hai. Free-tier AI models use hue hain, isliye accuracy ki koi guarantee nahi."
 )
 
 PROVIDER_STYLES = {
@@ -93,14 +93,139 @@ def _provider_badge(p: str) -> str:
             f"border:1px solid {color}40'>{_esc(label)}</span>")
 
 
+def _deterministic_view(r: dict) -> dict:
+    """New schema with a legacy-report fallback for saved/fixture reports."""
+    if r.get("deterministic"):
+        return r["deterministic"]
+    dec = r.get("decision") or {}
+    return {
+        "action": dec.get("detailed_action") or dec.get("decision", "HOLD"),
+        "legacy_action": dec.get("decision", "HOLD"), "setup_name": "Legacy plan",
+        "signal_state": "unavailable", "trigger": dec.get("entry_zone", "—"),
+        "entry_zone": None, "initial_stop": None, "stop_reason": "legacy output",
+        "target_1": None, "target_2": None,
+        "reward_risk": (dec.get("trade_validation") or {}).get("rr"),
+        "quantity": dec.get("quantity", 0), "allocation_pct": dec.get("position_size_pct", 0),
+        "allocation_rupees": 0, "max_loss_rupees": 0, "max_portfolio_loss_pct": 0,
+        "invalidation": "—", "trailing_rule": "—", "time_stop_sessions": 0,
+        "early_exit_rules": [], "confirmations": [], "missing_confirmations": [],
+        "deterministic_reasons": [], "limitations": [], "support_zones": [],
+        "resistance_zones": [], "relative_strength": {}, "weekly": {}, "daily": {},
+        "evidence": {"status": "BACKTEST NOT AVAILABLE", "validated_edge": False,
+                     "trades": 0, "walk_forward_windows": 0},
+    }
+
+
+def _zone_text(zone: dict | None) -> str:
+    return (f"₹{float(zone['low']):,.2f}–₹{float(zone['high']):,.2f}"
+            if zone and zone.get("low") is not None and zone.get("high") is not None else "—")
+
+
+def _zones_text(zones: list[dict]) -> str:
+    return "; ".join(
+        f"₹{float(z['low']):,.2f}–₹{float(z['high']):,.2f} "
+        f"({z.get('touches', 1)} touch, {z.get('source', 'structure')})"
+        for z in zones[:4]
+    ) or "unavailable"
+
+
+def _rs_text(rs: dict) -> str:
+    parts = []
+    for key, label in (("nifty", "NIFTY"), ("sector", "Sector"), ("peer", "Peer")):
+        item = rs.get(key) or {}
+        if item.get("status") != "available":
+            parts.append(f"{label}: unavailable")
+        else:
+            parts.append(
+                f"{label}: 1M {item.get('1m_pct')}%, 3M {item.get('3m_pct')}%, "
+                f"6M {item.get('6m_pct')}%, slope {item.get('slope_ann_pct')}% ({item.get('trend')})"
+            )
+    return " · ".join(parts) or "unavailable"
+
+
+def _source_health_markdown(r: dict) -> str:
+    records = (r.get("data_sources") or {}).get("health") or []
+    if not records:
+        return "*No structured source diagnostics in this (possibly legacy) report.*"
+    rows = []
+    for record in records:
+        rows.append(
+            f"| {record.get('source', '—')} | {record.get('category', '—')} | "
+            f"**{record.get('status', '—')}** | {record.get('rows', '—') if record.get('rows') is not None else '—'} | "
+            f"{record.get('as_of') or '—'} | {str(record.get('detail') or '—').replace('|', '/')} |"
+        )
+    return ("| Source | Category | Status | Rows | As of | Detail |\n"
+            "|---|---|---:|---:|---|---|\n" + "\n".join(rows))
+
+
+def _source_health_html(r: dict) -> str:
+    records = (r.get("data_sources") or {}).get("health") or []
+    if not records:
+        return "<p>No structured source diagnostics in this report.</p>"
+    rows = "".join(
+        "<tr>"
+        f"<td>{_esc(record.get('source'))}</td>"
+        f"<td>{_esc(record.get('category'))}</td>"
+        f"<td><strong>{_esc(record.get('status'))}</strong></td>"
+        f"<td>{_esc(record.get('rows'))}</td>"
+        f"<td>{_esc(record.get('as_of'))}</td>"
+        f"<td>{_esc(record.get('detail'))}</td>"
+        "</tr>"
+        for record in records
+    )
+    return ("<table><tr><th>Source</th><th>Category</th><th>Status</th>"
+            "<th>Rows</th><th>As of</th><th>Detail</th></tr>" + rows + "</table>")
+
+
+def _backtest_markdown(r: dict) -> str:
+    bt = r.get("backtest")
+    if not bt:
+        return ("## B. Historical Evidence\n\n**BACKTEST NOT AVAILABLE** — current setup ko "
+                "historical edge claim na samjhein. Explicit walk-forward run required.\n")
+    m, gate = bt.get("metrics", {}), bt.get("acceptance", {})
+    costs = (bt.get("aggregate") or {}).get("cost_config", {})
+    rows = "\n".join(
+        f"| {w.get('number')} | {w.get('train_start')} → {w.get('train_end')} | "
+        f"{w.get('validation_start')} → {w.get('validation_end')} | "
+        f"{w.get('test_start')} → {w.get('test_end')} |"
+        for w in bt.get("windows", [])
+    ) or "| — | — | — | — |"
+    return f"""## B. Historical Evidence
+
+**{gate.get('status', 'NO VALIDATED EDGE')}** · Scope: {gate.get('scope', 'stock-specific occurrences only')}
+
+| Metric | Unseen OOS result | Metric | Unseen OOS result |
+|---|---:|---|---:|
+| Trades | {m.get('trades', 0)} | Win rate | {m.get('win_rate_pct', 0)}% |
+| Profit factor | {m.get('profit_factor', '—')} | Expectancy | {m.get('expectancy_r', 0)}R |
+| Net return after costs | {m.get('net_total_return_pct', 0)}% | CAGR | {m.get('cagr_pct', '—')}% |
+| Max drawdown | {m.get('max_drawdown_pct', 0)}% | Sharpe / Sortino | {m.get('sharpe', '—')} / {m.get('sortino', '—')} |
+| NIFTY-relative alpha | {m.get('nifty_relative_alpha_pct', '—')}% | Exposure | {m.get('exposure_pct', 0)}% |
+| Stop hit / gap loss | {m.get('stop_loss_hit_rate_pct', 0)}% / {m.get('gap_loss_frequency_pct', 0)}% | Longest losing streak | {m.get('longest_losing_streak', 0)} |
+
+**Bootstrap uncertainty:** {m.get('bootstrap', {}).get('status', 'unavailable')} · expectancy 95% CI {m.get('bootstrap', {}).get('expectancy_r', '—')}
+
+**Costs:** brokerage {costs.get('brokerage_pct', '—')}%, STT buy/sell {costs.get('stt_buy_pct', '—')}%/{costs.get('stt_sell_pct', '—')}%, exchange {costs.get('exchange_pct', '—')}%, GST {costs.get('gst_pct', '—')}%, stamp buy {costs.get('stamp_buy_pct', '—')}%, slippage {costs.get('slippage_bps', '—')} bps, impact {costs.get('impact_bps', '—')} bps.
+
+| Window | Training | Validation | Unseen test |
+|---:|---|---|---|
+{rows}
+
+Failed acceptance checks: {', '.join(gate.get('failed_reasons') or []) or 'none'}.
+"""
+
+
 # ===========================================================================
 # MARKDOWN REPORT
 # ===========================================================================
 
 def build_markdown(r: dict) -> str:
     dec = r["decision"]
+    det = _deterministic_view(r)
     snap = r["snapshot"]
     price = r["price"]
+    ev = det.get("evidence") or {}
+    bt_md = _backtest_markdown(r)
 
     stats = r.get("stats", {})
     scoreboard_rows = "\n".join(
@@ -130,26 +255,58 @@ def build_markdown(r: dict) -> str:
 
 ---
 
-## 🎯 FINAL VERDICT
+## 🎯 FINAL VERDICT — Deterministic Code Authority
 
-**{_verdict_emoji(dec['decision'])} {dec['decision']} · {dec.get('rating', '—')} · Confidence {dec.get('confidence', 0)}%**
+**{det.get('action', 'REVIEW')} · {det.get('setup_name', '—')} · Signal {det.get('signal_state', '—')}**
 
 | | | | |
 |---|---|---|---|
-| **Price** | ₹{price:,.2f} | **Entry** | {dec.get('entry_zone', '—')} |
-| **Target** | {dec.get('target', '—')} | **Stop loss** | {dec.get('stop_loss', '—')} |
-| **Position size** | {dec.get('position_size_pct', 0)}% capital | **Timeframe** | {dec.get('timeframe', '—')} |
-| **ML Quant Score** | {qline} | **Next results** | {_nr or '—'} |
-| **Market Regime** | {_reg or '—'} | **Position band** | {_regband or '—'} |
-| **Data quality** | {_dq.get('score', '—')}/100 ({_dq.get('level', '—')}) | **Code-verified R:R** | {_rr} |
+| **Price** | ₹{price:,.2f} | **Entry zone** | {_zone_text(det.get('entry_zone'))} |
+| **Trigger** | {det.get('trigger', '—')} | **Initial stop** | {('₹' + format(float(det['initial_stop']), ',.2f')) if det.get('initial_stop') is not None else '—'} |
+| **T1 / T2** | {det.get('target_1', '—')} / {det.get('target_2', '—')} | **R:R (to T2)** | {det.get('reward_risk', '—')} |
+| **Quantity** | {det.get('quantity', 0)} | **Allocation** | ₹{float(det.get('allocation_rupees', 0)):,.2f} ({det.get('allocation_pct', 0)}%) |
+| **Maximum loss** | ₹{float(det.get('max_loss_rupees', 0)):,.2f} | **Portfolio loss** | {det.get('max_portfolio_loss_pct', 0)}% |
+| **Evidence** | {ev.get('status', 'BACKTEST NOT AVAILABLE')} | **OOS sample/windows** | {ev.get('trades', 0)} / {ev.get('walk_forward_windows', 0)} |
+| **Market Regime** | {_reg or det.get('weekly', {}).get('trend_state', '—')} | **Position band** | {_regband or '—'} |
+| **Data quality** | {_dq.get('score', '—')}/100 ({_dq.get('level', '—')}) | **Time stop** | {det.get('time_stop_sessions', 0)} sessions |
 
-**Rationale:** {dec.get('rationale', '—')}
+**Setup invalidation:** {det.get('invalidation', '—')}
 
-**Key risks:** {', '.join(str(k) for k in dec.get('key_risks', [])) or '—'}
+**Stop reason:** {det.get('stop_reason', '—')}
 
-**⚔️ Model battle notes:** {dec.get('battle_notes', '—')}
+**Trailing:** {det.get('trailing_rule', '—')}
 
-**🔌 Data-quality limitations:** {'; '.join(_dq.get('issues') or []) or 'none reported'}
+**Support zones:** {_zones_text(det.get('support_zones') or [])}
+
+**Resistance zones:** {_zones_text(det.get('resistance_zones') or [])}
+
+**Relative strength:** {_rs_text(det.get('relative_strength') or {})}
+
+**Confirmed:** {'; '.join(det.get('confirmations') or []) or 'none'}
+
+**Missing confirmations:** {'; '.join(det.get('missing_confirmations') or []) or 'none'}
+
+**Deterministic reasons:** {'; '.join(det.get('deterministic_reasons') or []) or '—'}
+
+**Data/integrity limitations:** {'; '.join(det.get('limitations') or _dq.get('issues') or []) or 'none reported'}
+
+> 🔒 Entry, exit, stop, targets, size, action aur backtest numbers deterministic code-owned hain. LLM inhe override nahi kar sakta.
+
+---
+
+{bt_md}
+
+---
+
+## C. Why This Action / Separate AI Commentary
+
+**AI-proposed legacy call (non-authoritative):** {(r.get('ai_decision') or {}).get('decision', '—')} · AI prose confidence is not a strategy statistic and is not displayed as trade confidence.
+
+**AI rationale:** {(r.get('ai_decision') or dec).get('rationale', '—')}
+
+**AI key risks:** {', '.join(str(k) for k in (r.get('ai_decision') or dec).get('key_risks', [])) or '—'}
+
+**⚔️ AI battle notes:** {(r.get('ai_decision') or dec).get('battle_notes', '—')}
 
 ---
 
@@ -173,6 +330,13 @@ def build_markdown(r: dict) -> str:
 - **🔌 Data sources:** {ds_text}{' · ' + ds_quality if ds_quality else ''}
 
 {r['market_context_block']}
+
+### Source health / provenance
+
+{_source_health_markdown(r)}
+
+`empty` is not evidence of silence; `network-blocked`, `rate-limited`, `parse-failed`,
+`unconfigured`, `stale`, and point-in-time `suppressed` are distinct states.
 
 ---
 
@@ -379,12 +543,17 @@ box-shadow:none}h2,h3,.kpi .v{color:#111}}
 
 def build_html(r: dict) -> str:
     dec = r["decision"]
+    det = _deterministic_view(r)
     snap = r["snapshot"]
     price = r["price"]
-    d = dec["decision"].upper()
-    vclass = {"BUY": "v-buy", "SELL": "v-sell", "HOLD": "v-hold"}.get(d, "v-hold")
-    vicon = {"BUY": "🟢", "SELL": "🔴", "HOLD": "🟡"}.get(d, "⚪")
-    conf = int(dec.get("confidence", 0) or 0)
+    d = str(det.get("action") or dec["decision"]).upper()
+    vclass = {"BUY": "v-buy", "ENTER": "v-buy", "ADD": "v-buy",
+              "SELL": "v-sell", "TRIM": "v-sell", "EXIT": "v-sell",
+              "HOLD": "v-hold", "WAIT": "v-hold", "REVIEW": "v-hold"}.get(d, "v-hold")
+    vicon = {"BUY": "🟢", "ENTER": "🟢", "ADD": "🟢", "SELL": "🔴",
+             "TRIM": "🟠", "EXIT": "🔴", "HOLD": "🟡", "WAIT": "🟡",
+             "REVIEW": "⚠️"}.get(d, "⚪")
+    int(dec.get("confidence", 0) or 0)
     _reg = (r.get("decision") or {}).get("regime")
     _regband = (r.get("decision") or {}).get("regime_band")
     _q = r.get("quant") or {}
@@ -436,7 +605,37 @@ def build_html(r: dict) -> str:
                       f"src='data:image/png;base64,{r['chart_b64']}'></div>")
 
     risks = "".join(f"<span class='risk'>⚠️ {_esc(k)}</span>"
-                    for k in (dec.get("key_risks") or [])) or "<span class='risk'>—</span>"
+                    for k in ((r.get('ai_decision') or dec).get("key_risks") or [])) or "<span class='risk'>—</span>"
+    _ev = det.get("evidence") or {}
+    _confirm_text = ("Confirmed: " + ("; ".join(det.get("confirmations") or []) or "none")
+                     + "\n\nMissing: " + ("; ".join(det.get("missing_confirmations") or []) or "none"))
+    _zone_summary = ("Support: " + _zones_text(det.get("support_zones") or [])
+                     + "\n\nResistance: " + _zones_text(det.get("resistance_zones") or []))
+    _exit_summary = (str(det.get("trailing_rule", "—")) + "\n\n"
+                     + "; ".join(det.get("early_exit_rules") or []))
+    _relative_summary = _rs_text(det.get("relative_strength") or {})
+    det_card = f"""
+    <div class='trade-grid'>
+      <div class='tg'><div class='l'>Setup / state</div><div class='v'>{_esc(det.get('setup_name'))} · {_esc(det.get('signal_state'))}</div></div>
+      <div class='tg'><div class='l'>Entry zone</div><div class='v'>{_esc(_zone_text(det.get('entry_zone')))}</div></div>
+      <div class='tg'><div class='l'>Initial stop</div><div class='v'>{('₹' + format(float(det['initial_stop']), ',.2f')) if det.get('initial_stop') is not None else '—'}</div></div>
+      <div class='tg'><div class='l'>T1 / T2</div><div class='v'>{_esc(det.get('target_1'))} / {_esc(det.get('target_2'))}</div></div>
+      <div class='tg'><div class='l'>R:R</div><div class='v'>{_esc(det.get('reward_risk'))}</div></div>
+      <div class='tg'><div class='l'>Quantity / allocation</div><div class='v'>{_esc(det.get('quantity', 0))} · {_esc(det.get('allocation_pct', 0))}%</div></div>
+      <div class='tg'><div class='l'>Maximum loss</div><div class='v'>₹{float(det.get('max_loss_rupees', 0)):,.2f} ({_esc(det.get('max_portfolio_loss_pct', 0))}%)</div></div>
+      <div class='tg'><div class='l'>Historical evidence</div><div class='v'>{_esc(_ev.get('status', 'BACKTEST NOT AVAILABLE'))}</div></div>
+      <div class='tg'><div class='l'>Market Regime</div><div class='v'>{_esc(_reg or (det.get('weekly') or {}).get('trend_state', '—'))} · {_esc(_regband or '—')}</div></div>
+    </div>
+    <h3>Trigger</h3>{_md(det.get('trigger', '—'))}
+    <h3>Stop reason / invalidation</h3>{_md(str(det.get('stop_reason', '—')) + ' · ' + str(det.get('invalidation', '—')))}
+    <h3>Confirmed / missing</h3>{_md(_confirm_text)}
+    <h3>Support / resistance zones</h3>{_md(_zone_summary)}
+    <h3>Relative strength</h3>{_md(_relative_summary)}
+    <h3>Exit discipline</h3>{_md(_exit_summary)}
+    <h3>Limitations</h3>{_md('; '.join(det.get('limitations') or []) or 'None reported')}
+    <blockquote>🔒 LLM cannot override code-owned action, entry, stop, targets, quantity or backtest statistics.</blockquote>
+    """
+    backtest_html = _md(_backtest_markdown(r))
 
     score_rows = ""
     for p, s in (r.get("stats") or {}).items():
@@ -485,12 +684,12 @@ def build_html(r: dict) -> str:
   <div class='verdict-row'>
     <div class='vpill {vclass}'>{vicon} {d}</div>
     <div class='vmeta'>
-      <div class='rating'>Rating: {_esc(dec.get('rating', '—'))}</div>
-      <div class='modelnote'>Final call: Portfolio Manager (multi-AI synthesis)</div>
+      <div class='rating'>{_esc(det.get('setup_name', '—'))}</div>
+      <div class='modelnote'>Signal {_esc(det.get('signal_state', '—'))} · deterministic-v1</div>
     </div>
     <div class='confwrap'>
-      <div class='conflabel'><span>Confidence</span><span>{conf}%</span></div>
-      <div class='confbar'><div class='conffill' style='width:{min(conf,100)}%'></div></div>
+      <div class='conflabel'><span>Historical evidence</span><span>{_esc(_ev.get('status', 'BACKTEST NOT AVAILABLE'))}</span></div>
+      <div class='modelnote'>AI prose confidence is not used as strategy confidence.</div>
     </div>
   </div>
 </div>
@@ -499,22 +698,18 @@ def build_html(r: dict) -> str:
 {kpis}
 {chart_html}
 
-<h2 class='sec'><span class='secnum'>PLAN</span>🎯 Trade Plan & Rationale</h2>
+<h2 class='sec'><span class='secnum'>A</span>🎯 Current Deterministic Setup</h2>
+<div class='card'>{det_card}</div>
+
+<h2 class='sec'><span class='secnum'>B</span>📊 Historical Evidence</h2>
+<div class='card'>{backtest_html}</div>
+
+<h2 class='sec'><span class='secnum'>C</span>🧠 Why This Action / Separate AI Commentary</h2>
 <div class='card'>
-  <div class='trade-grid'>
-    <div class='tg'><div class='l'>Entry zone</div><div class='v'>{_esc(dec.get('entry_zone', '—'))}</div></div>
-    <div class='tg'><div class='l'>Target</div><div class='v'>{_esc(dec.get('target', '—'))}</div></div>
-    <div class='tg'><div class='l'>Stop loss</div><div class='v'>{_esc(dec.get('stop_loss', '—'))}</div></div>
-    <div class='tg'><div class='l'>Position size</div><div class='v'>{_esc(dec.get('position_size_pct', 0))}% capital</div></div>
-    <div class='tg'><div class='l'>Timeframe</div><div class='v'>{_esc(dec.get('timeframe', '—'))}</div></div>
-  </div>
-  <h3>Why (Hinglish rationale)</h3>
-  {_md(dec.get('rationale', '—'))}
-  <h3>Key risks</h3><div class='risks'>{risks}</div>
-  <h3>⚔️ Model battle notes & deterministic guards</h3>
-  {_md(dec.get('battle_notes', '—'))}
-  <h3>🔌 Data-quality limitations</h3>
-  {_md('; '.join(_dq.get('issues') or []) or 'None reported')}
+  <h3>Deterministic reasons</h3>{_md('; '.join(det.get('deterministic_reasons') or []) or '—')}
+  <h3>AI rationale (non-authoritative)</h3>{_md((r.get('ai_decision') or dec).get('rationale', '—'))}
+  <h3>AI key risks</h3><div class='risks'>{risks}</div>
+  <h3>⚔️ AI battle notes</h3>{_md((r.get('ai_decision') or dec).get('battle_notes', '—'))}
 </div>
 
 <h2 class='sec'><span class='secnum'>AI</span>🤖 Model Battle Scoreboard</h2>
@@ -556,6 +751,7 @@ def build_html(r: dict) -> str:
 <details><summary>🇮🇳 India macro news</summary><pre>{_esc(r['macro_news_block'])}</pre></details>
 <details><summary>🌍 Global macro (FRED)</summary><pre>{_esc(r.get('fred_block', '—'))}</pre></details>
 <details><summary>💬 Social chatter</summary><pre>{_esc(r['social_block'])}</pre></details>
+<details open><summary>🔌 Source health / provenance</summary>{_source_health_html(r)}</details>
 </div>
 
 <div class='card' style='border-color:#f59e0b55'>

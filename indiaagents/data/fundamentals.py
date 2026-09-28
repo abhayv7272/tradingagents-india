@@ -11,6 +11,7 @@ from datetime import datetime
 import pandas as pd
 import yfinance as yf
 
+from .health import SourceResult, classify_exception, health, india_today
 from .market import inr
 
 
@@ -66,7 +67,11 @@ def _asof_statement(stmt, trade_date: str | None):
                     keep.append(col)
             except (TypeError, ValueError):
                 continue
-        return stmt.loc[:, keep]
+        filtered = stmt.loc[:, keep]
+        try:
+            return filtered.loc[:, sorted(filtered.columns, reverse=True)]
+        except TypeError:
+            return filtered
     except (TypeError, ValueError):
         return stmt
 
@@ -124,20 +129,70 @@ def _div_yield(info: dict) -> float | None:
 
 
 def get_fundamentals_data(ticker: str, trade_date: str | None = None) -> dict:
-    """Return a compact fundamentals text block + dict of key figures."""
+    """Return fundamentals plus per-endpoint health; never crash on Yahoo failure."""
     t = yf.Ticker(ticker)
-    inc = _asof_statement(t.income_stmt, trade_date)
-    bal = _asof_statement(t.balance_sheet, trade_date)
-    cf = _asof_statement(t.cashflow, trade_date)
+    source_health: list[dict] = []
+
+    def statement(attr: str, category: str) -> pd.DataFrame:
+        try:
+            value = getattr(t, attr)
+            if not isinstance(value, pd.DataFrame):
+                value = pd.DataFrame()
+            value = _asof_statement(value, trade_date)
+            if value is not None and not value.empty:
+                try:
+                    value = value.loc[:, sorted(value.columns, reverse=True)]
+                except TypeError:
+                    pass
+            source_health.append(health(
+                "yahoo", category, "available" if value is not None and not value.empty else "empty",
+                "annual statement periods" if value is not None and not value.empty
+                else "statement returned no periods on/before analysis date",
+                rows=len(value.index) if value is not None else 0,
+                as_of=(str(value.columns[0].date()) if value is not None and not value.empty
+                       and hasattr(value.columns[0], "date") else None),
+            ).to_dict())
+            return value if value is not None else pd.DataFrame()
+        except Exception as exc:
+            status, detail = classify_exception(exc)
+            source_health.append(health("yahoo", category, status, detail).to_dict())
+            return pd.DataFrame()
+
+    inc = statement("income_stmt", "income-statement")
+    bal = statement("balance_sheet", "balance-sheet")
+    cf = statement("cashflow", "cash-flow")
     try:
         info = t.info or {}
-    except Exception:
+        source_health.append(health(
+            "yahoo", "fundamental-quote-summary", "available" if info else "empty",
+            "latest quote ratios and classification" if info else "quote summary was empty",
+            rows=1 if info else 0,
+        ).to_dict())
+    except Exception as exc:
         info = {}
+        status, detail = classify_exception(exc)
+        source_health.append(health(
+            "yahoo", "fundamental-quote-summary", status, detail,
+        ).to_dict())
+        # yfinance can swallow the same transport exception for statement
+        # properties and return empty frames. If every statement is empty while
+        # quote-summary exposes a transport/rate failure, preserve that stronger
+        # diagnosis instead of misreporting three legitimate no-data responses.
+        if status in ("network-blocked", "rate-limited") and all(
+                frame.empty for frame in (inc, bal, cf)):
+            for record in source_health:
+                if record["category"] in ("income-statement", "balance-sheet", "cash-flow") \
+                        and record["status"] == "empty":
+                    record["status"] = status
+                    record["detail"] = (
+                        "yfinance returned empty while quote-summary had the same provider "
+                        f"{status} failure"
+                    )
 
     is_historical = False
     if trade_date:
         try:
-            is_historical = datetime.strptime(trade_date, "%Y-%m-%d").date() < datetime.now().date()
+            is_historical = datetime.strptime(trade_date, "%Y-%m-%d").date() < india_today()
         except ValueError:
             pass
     # Yahoo quote-summary and Screener ratios are latest snapshots. Never mix
@@ -213,7 +268,7 @@ BALANCE SHEET (latest FY):
 CASH FLOW (latest FY):
 - Operating Cash Flow: {_fmt_millions(ocf)}
 - CapEx: {_fmt_millions(capex)} | Free Cash Flow (OCF−CapEx): {_fmt_millions(fcf)}
-- Buybacks: {buyback and _fmt_millions(buyback)} | Dividends Paid: {dividends and _fmt_millions(dividends)}
+- Buybacks: {_fmt_millions(buyback)} | Dividends Paid: {_fmt_millions(dividends)}
 
 MARKET SNAPSHOT:
 - Market Cap: {inr(mcap) if mcap else '—'} | P/E (TTM): {_r(market_info.get('trailingPE'))} | Forward P/E: {_r(market_info.get('forwardPE'))}
@@ -225,25 +280,45 @@ MARKET SNAPSHOT:
 NOTE: Financial statement data is annual (Indian FY ends March). Verify promoter
 shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't carry them."""
 
-    # ── MULTI-SOURCE: Screener.in independent fundamentals + P/E cross-check ──
+    # ── MULTI-SOURCE: Screener.in independent latest snapshot cross-check ──
     screener, screener_note = None, ""
-    try:
-        from .sources import get_screener_fundamentals, screener_text_block
-        screener = (None if is_historical else get_screener_fundamentals(
-            ticker, info.get("shortName") or info.get("longName"), trade_date))
-        if screener:
-            block += screener_text_block(screener)
-            yf_pe, sc_pe = market_info.get("trailingPE"), screener.get("pe")
-            if yf_pe and sc_pe:
-                d = abs(float(yf_pe) - float(sc_pe)) / max(float(sc_pe), 0.01) * 100
-                tag = ("⚠️ P/E CONFLICT >15% — Yahoo vs Screener numbers alag, "
-                       "dono quote karo aur conservative use karo" if d > 15
-                       else f"P/E cross-check: Yahoo {float(yf_pe):.1f} vs Screener "
-                            f"{float(sc_pe):.1f} (diff {d:.0f}% — OK)")
-                screener_note = tag
-                block += f"\n\n[{tag}]"
-    except Exception:
-        pass
+    if is_historical:
+        source_health.append(health(
+            "screener", "fundamentals-crosscheck", "suppressed",
+            "latest-only snapshot suppressed for historical PIT run",
+        ).to_dict())
+    else:
+        try:
+            from .sources import get_screener_fundamentals, screener_text_block
+            result = get_screener_fundamentals(
+                ticker, info.get("shortName") or info.get("longName"), trade_date,
+                with_health=True,
+            )
+            if isinstance(result, SourceResult):
+                screener, screener_health = result.value, result.health
+            else:  # injected/legacy adapter compatibility
+                screener = result
+                screener_health = health(
+                    "screener", "fundamentals-crosscheck",
+                    "available" if screener else "empty", "adapter result",
+                )
+            source_health.append(screener_health.to_dict())
+            if screener:
+                block += screener_text_block(screener)
+                yf_pe, sc_pe = market_info.get("trailingPE"), screener.get("pe")
+                if yf_pe and sc_pe:
+                    difference = abs(float(yf_pe) - float(sc_pe)) / max(float(sc_pe), 0.01) * 100
+                    tag = ("⚠️ P/E CONFLICT >15% — Yahoo vs Screener numbers alag, "
+                           "dono quote karo aur conservative use karo" if difference > 15
+                           else f"P/E cross-check: Yahoo {float(yf_pe):.1f} vs Screener "
+                                f"{float(sc_pe):.1f} (diff {difference:.0f}% — OK)")
+                    screener_note = tag
+                    block += f"\n\n[{tag}]"
+        except Exception as exc:
+            status, detail = classify_exception(exc)
+            source_health.append(health(
+                "screener", "fundamentals-crosscheck", status, detail,
+            ).to_dict())
 
     return {
         "fundamentals_block": block,
@@ -253,4 +328,9 @@ shareholding, pledges and auditor notes from NSE/BSE filings — Yahoo doesn't c
             "roe": roe, "de_ratio": de_ratio, "fcf": fcf,
         },
         "screener": screener, "screener_note": screener_note,
+        "source_health": source_health,
+        "limitations": [
+            "Yahoo statements are current restated snapshots without filing-publication timestamps",
+            "Screener is an unofficial latest HTML snapshot and is suppressed historically",
+        ],
     }

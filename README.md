@@ -14,7 +14,7 @@ Stock ka naam dalo → 4 Analysts + 🐂 Bull vs 🐻 Bear debate + ⚔️ **3-M
    TUM: "RELIANCE" type karo
               │
               ▼
-┌─ DATA (multi-source, 6 sources — free, no keys*) ────┐
+┌─ DATA (multi-source — free; AV/FRED keys optional) ──┐
 │ yfinance: price, indicators, financials (₹)          │
 │ Screener.in: MCap, P/E, BV, ROCE, ROE (independent)  │
 │ NSE: live quote cross-check (last/VWAP/52w)          │
@@ -40,9 +40,10 @@ Stock ka naam dalo → 4 Analysts + 🐂 Bull vs 🐻 Bear debate + ⚔️ **3-M
 │ banata hai. (Different AI = different biases!)       │
 └──────────────────────┬───────────────────────────────┘
                        ▼
-┌─ TRADER → entry/target/stop-loss/size ───────────────┐
+┌─ DETERMINISTIC ENGINE → setup/entry/SL/targets/size ─┐
+│  (daily+weekly+pivots+RS; LLM sirf explanation)      │
 ┌─ RISK TEAM: 😤 Aggressive ⟷ 🛡️ Conservative ⟷ 😐 Neutral ┐
-┌─ PORTFOLIO MANAGER → 🎯 FINAL DECISION (JSON) ───────┐
+┌─ PORTFOLIO MANAGER → commentary; code action LOCK ───┐
 └──────────────────────┬───────────────────────────────┘
                        ▼
        📄 reports/RELIANCE.NS_<date>/report.md + report.html
@@ -61,7 +62,7 @@ Ye app **bilkul free** tumhare apne URL pe chala sakte ho — **[DEPLOY.md](DEPL
 | **Groq** (Llama 3.3 70B) | ~1000 req/day, 30 RPM | [console.groq.com/keys](https://console.groq.com/keys) | `GROQ_API_KEY` |
 | **OpenRouter** (free models) | ~50 req/day | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) | `OPENROUTER_API_KEY` |
 
-> Gemini key **must** hai (primary). Groq + OpenRouter milne se Battle Mode asli ban jata hai — teen alag model families ladti hain. Data (price/fundamentals/news) ke liye **koi key nahi chahiye**.
+> Gemini key **must** hai (primary). Groq + OpenRouter milne se Battle Mode asli ban jata hai — teen alag model families ladti hain. Yahoo/Screener/NSE/Google News/Reddit ke liye key nahi; Alpha Vantage fallback aur FRED macro ke liye optional `ALPHA_VANTAGE_API_KEY` / `FRED_API_KEY` chahiye.
 
 ## 🚀 Setup
 
@@ -106,9 +107,76 @@ Ek full run ≈ 18-25 LLM calls leta hai (free quota mein easily fit). Report `r
 | Interface | Terminal CLI | Web dashboard + CLI |
 | Report | English | Hinglish 🎉 |
 
+## 🧭 Deterministic Strategy + Walk-Forward Backtest
+
+`deterministic-v1` mein **LLM trade economics decide nahi karta**. Historical OHLCV, completed-week candles, confirmed pivots, ATR zones, volume, NIFTY/sector relative strength aur regime se code ye fields calculate karta hai:
+
+- detailed action: `ENTER / ADD / HOLD / WAIT / TRIM / EXIT / REVIEW`;
+- active/waiting setup and exact close/volume/RS trigger;
+- entry zone, structure+ATR stop and stop reason;
+- T1/T2, R:R, partial exits, chandelier trail and time stop;
+- integer quantity, allocation and maximum portfolio loss.
+
+Fresh investor ke liye incomplete setup **WAIT** hai; `HOLD` sirf existing holding ke liye hai. Active occurrence bhi `ENTER` nahi banta jab tak universe-level OOS acceptance gate pass na ho. Single-stock result ko stock-specific occurrences bola jata hai—50 trades ya diversification fabricate nahi hoti.
+
+Implemented setups:
+
+1. weekly-trend breakout;
+2. breakout retest;
+3. trend pullback;
+4. range breakout / volatility contraction;
+5. bottoming reversal probe (small allocation, multiple confirmations).
+
+Backtester signal close ke baad banata hai, earliest next session execute karta hai, gap-through-stop ko open par fill karta hai, ambiguous stop+target candle mein adverse ordering use karta hai, partial exits/trailing/time stop process karta hai aur every fill/reason store karta hai. Indian delivery cost assumptions (brokerage, STT, exchange/SEBI charges, GST, stamp duty, slippage, optional impact) configurable hain; **net return after costs** primary hai.
+
+### UI
+
+1. Sidebar mein existing holding, average price, quantity, capital, max risk (safe default 1%), max allocation, horizon aur risk profile set karo.
+2. Research button deterministic current setup banata hai; expensive backtest automatically run nahi hota.
+3. **Historical evidence** tab mein period/cost/window/setup settings choose karke explicit walk-forward button dabao.
+4. Equity/drawdown, fills/trades, setup/regime tables aur `VALIDATED EDGE` / `NO VALIDATED EDGE` gate dekho.
+
+### CLI
+
+```bash
+# Fresh investor (incomplete setup => WAIT)
+python run.py RELIANCE --mock --capital 100000 --max-risk 1 --max-allocation 15
+
+# Existing holding context
+python run.py TCS --existing-holding --average-buy-price 3500 --quantity 10 \
+  --capital 500000 --horizon positional --risk-profile conservative
+
+# Explicit, cost-aware OOS walk-forward run (network history required)
+python run.py INFY --mock --walk-forward --backtest-years 10
+
+# Fully offline deterministic mechanics check (synthetic data is NOT edge evidence)
+python scripts/synthetic_backtest.py
+```
+
+Detailed methodology, cost table and integrity limits: **[docs/BACKTEST_METHODOLOGY.md](docs/BACKTEST_METHODOLOGY.md)**
+
+Delivery/status checklist: **[docs/DETERMINISTIC_ENGINE_CHECKLIST.md](docs/DETERMINISTIC_ENGINE_CHECKLIST.md)**
+
+### Acceptance gate defaults
+
+At least 50 unseen OOS trades, three test windows, positive net expectancy, PF ≥1.20, max drawdown ≤25%, verified per-stock counts for three stocks, and two regimes. One stock cannot exceed 70% and one regime cannot exceed 80% of OOS trades. Any failed condition returns **NO VALIDATED EDGE** and no forced fresh entry.
+
+### Important data honesty
+
+Yahoo history current adjusted-data vintage hai. Strict historical splits/dividends/bonuses, delistings, symbol changes, historical sector membership aur survivorship-free universe current free sources se guarantee nahi kiye ja sakte. App is limitation ko disclose karta hai; “leak-free institutional-grade data” claim nahi karta. Official NSE/BSE bhavcopy or broker adapter future mein source protocol ke through add ho sakta hai without strategy rewrite.
+
+Har adapter structured source state deta hai: `available`, `stale`, `empty`, `unconfigured`, `network-blocked`, `rate-limited`, `parse-failed`, ya PIT `suppressed`. Isliye blocked feed ko “no news/no chatter” nahi maana jata. Streamlit Data tab aur generated reports full source-health/provenance matrix dikhate hain.
+
+```bash
+# Live reachability diagnostic (core/offline tests se separate; keys kabhi print nahi hoti)
+python scripts/check_data_sources.py --ticker RELIANCE.NS --name "Reliance Industries"
+```
+
+Deep source/fallback audit and current sandbox reachability: **[docs/DATA_SOURCE_AUDIT_2026-09-29.md](docs/DATA_SOURCE_AUDIT_2026-09-29.md)**
+
 ## ⚠️ Disclaimer
 
-Ye project **educational research** ke liye hai — financial/investment advice **nahi**. AI models galat ho sakte hain (especially free-tier). SEBI-registered advisor ki salah ka replacement nahi hai. Apna research karo, apna risk lo.
+Ye project **educational research** ke liye hai — financial/investment advice **nahi**. Historical performance future returns ki guarantee nahi hai. AI models galat ho sakte hain (especially free-tier). SEBI-registered advisor ki salah ka replacement nahi hai. Apna research karo, apna risk lo.
 
 ## 🙏 Credits
 

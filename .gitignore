@@ -10,6 +10,9 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+.cache/
+.pytest_cache/
+.ruff_cache/
 
 # Streamlit / OS
 .streamlit/secrets.toml

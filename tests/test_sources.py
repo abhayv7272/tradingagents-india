@@ -69,11 +69,11 @@ SCREENER_FIXTURE = """<!DOCTYPE html><html><body>
     </li>
     <li class="flex flex-space-between" data-source="default">
       <span class="name">Dividend Yield</span>
-      <span class="nowrap value"><span class="number">0.38</span> %</span>
+      <span class="nowrap value"><span class="number">0.50</span> %</span>
     </li>
     <li class="flex flex-space-between" data-source="default">
       <span class="name">ROCE</span>
-      <span class="nowrap value"><span class="number">10.25</span> %</span>
+      <span class="nowrap value"><span class="number">10.3</span> %</span>
     </li>
     <li class="flex flex-space-between" data-source="default">
       <span class="name">ROE</span>
@@ -128,7 +128,8 @@ def sources_module_imports():
     from indiaagents.data import sources
     for fn in ("get_screener_fundamentals", "get_nse_quote", "get_alpha_vantage_quote",
                "get_alpha_vantage_history", "cross_check_price", "parse_screener_html",
-               "parse_nse_quote", "parse_av_quote", "parse_av_history", "screener_text_block"):
+               "parse_screener_search", "parse_nse_quote", "parse_av_quote", "parse_av_history",
+               "screener_text_block"):
         assert callable(getattr(sources, fn)), f"missing: {fn}"
 
 
@@ -140,7 +141,7 @@ def screener_parser_fixture():
     assert r.get("market cap") == "₹ 16,20,656 Cr.", r
     assert r.get("stock p/e") == "21.7", r
     assert r.get("high / low") == "₹ 1,612 / 1,196", r  # dono numbers ek saath
-    assert r.get("roce") == "10.25 %", r
+    assert r.get("roce") == "10.3 %", r
     assert "Reliance Industries" in out["about"]
 
 

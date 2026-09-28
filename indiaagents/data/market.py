@@ -6,10 +6,12 @@ Computes the same families of indicators the original TradingAgents offers
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 import yfinance as yf
+
+from .health import SourceResult, classify_exception, health, health_dicts, india_today
 
 # A small map of popular NSE names -> ticker for friendly input ("reliance" -> RELIANCE.NS)
 POPULAR_NSE = {
@@ -263,68 +265,154 @@ def get_market_data(ticker: str, trade_date: str | None = None,
                     lookback_months: int = 6) -> dict:
     """Fetch OHLCV + compute indicators. Returns dict with data blocks for prompts."""
     t = yf.Ticker(ticker)
-    asof = trade_date or datetime.now().strftime("%Y-%m-%d")
-    # yfinance ka 'end' EXCLUSIVE hota hai — trade_date ka bar paane ke liye +1 din
-    end = (datetime.strptime(asof, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-    start = (datetime.strptime(asof, "%Y-%m-%d") - timedelta(days=400)).strftime("%Y-%m-%d")
-    df = t.history(start=start, end=end, interval="1d", auto_adjust=True)
-    df.index = df.index.tz_localize(None) if not df.empty else df.index
-    if not df.empty:
-        # point-in-time: asof date tak hi (future leak nahi)
-        df = df[df.index <= pd.Timestamp(asof)]
-    # ── MULTI-SOURCE FALLBACK: yfinance empty/short → Alpha Vantage (BSE) ──
+    asof = trade_date or india_today().isoformat()
+    asof_ts = pd.Timestamp(datetime.strptime(asof, "%Y-%m-%d").date())
+    # 200-SMA and completed 40-week features need materially more than six
+    # months. Respect a larger configured lookback, but never fetch less than
+    # 600 calendar days (~420 sessions, leaving a safe warm-up margin).
+    lookback_days = max(600, max(1, int(lookback_months)) * 31)
+    end = (asof_ts + pd.Timedelta(days=1)).strftime("%Y-%m-%d")  # Yahoo end is exclusive
+    start = (asof_ts - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    source_health: list[dict] = []
+
+    def clean_history(raw) -> pd.DataFrame:
+        if raw is None or not isinstance(raw, pd.DataFrame) or raw.empty:
+            return pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+        frame = raw.copy()
+        if isinstance(frame.columns, pd.MultiIndex):
+            frame.columns = frame.columns.get_level_values(0)
+        required = ["Open", "High", "Low", "Close", "Volume"]
+        if not set(required).issubset(frame.columns):
+            return pd.DataFrame(columns=required)
+        parsed_index = pd.to_datetime(frame.index, errors="coerce")
+        frame.index = (parsed_index.tz_localize(None)
+                       if getattr(parsed_index, "tz", None) is not None else parsed_index)
+        frame = frame[~frame.index.isna()]
+        frame = frame[(frame.index >= pd.Timestamp(start)) & (frame.index <= asof_ts)]
+        for col in required:
+            frame[col] = pd.to_numeric(frame[col], errors="coerce")
+        frame = frame.dropna(subset=["Open", "High", "Low", "Close"])
+        frame = frame[(frame[["Open", "High", "Low", "Close"]] > 0).all(axis=1)]
+        frame = frame[(frame["High"] >= frame[["Open", "Close", "Low"]].max(axis=1)) &
+                      (frame["Low"] <= frame[["Open", "Close", "High"]].min(axis=1))]
+        frame["Volume"] = frame["Volume"].fillna(0).clip(lower=0)
+        return frame[~frame.index.duplicated(keep="last")].sort_index()
+
+    try:
+        df = clean_history(t.history(
+            start=start, end=end, interval="1d", auto_adjust=True,
+        ))
+        yh_status = "available" if not df.empty else "empty"
+        source_health.append(health(
+            "yahoo", "ohlcv-primary", yh_status,
+            "adjusted daily history" if not df.empty else "history returned no valid OHLCV rows",
+            rows=len(df), as_of=df.index[-1].date().isoformat() if len(df) else None,
+        ).to_dict())
+    except Exception as exc:
+        df = clean_history(None)
+        status, detail = classify_exception(exc)
+        source_health.append(health("yahoo", "ohlcv-primary", status, detail).to_dict())
+
+    # Yahoo transport failures and short histories both reach the configured
+    # Alpha Vantage fallback. The fallback is unadjusted and is labelled so.
     data_source = "yahoo"
-    if df.empty or len(df) < 260:
+    if len(df) < 260:
+        from .sources import get_alpha_vantage_history
         try:
-            from .sources import get_alpha_vantage_history
-            av = get_alpha_vantage_history(ticker)
-            if av is not None and len(av) > len(df):
-                av = av[av.index <= pd.Timestamp(asof)]
-                if len(av) > len(df):
-                    df, data_source = av, "alphavantage"
-        except Exception:
-            pass
+            av_result = get_alpha_vantage_history(ticker, with_health=True)
+            if isinstance(av_result, SourceResult):
+                av_raw, av_health = av_result.value, av_result.health
+            else:  # backward-compatible injected adapters/tests
+                av_raw = av_result
+                av_health = health(
+                    "alpha-vantage", "ohlcv-fallback",
+                    "available" if av_raw is not None else "empty", "adapter result",
+                )
+            av = clean_history(av_raw)
+            source_health.append(av_health.to_dict())
+            if len(av) > len(df):
+                df, data_source = av, "alphavantage"
+        except Exception as exc:
+            status, detail = classify_exception(exc)
+            source_health.append(health(
+                "alpha-vantage", "ohlcv-fallback", status, detail,
+            ).to_dict())
+    else:
+        source_health.append(health(
+            "alpha-vantage", "ohlcv-fallback", "suppressed",
+            "primary Yahoo history met the 260-session minimum",
+        ).to_dict())
+
     if df.empty:
-        raise ValueError(f"{ticker} ka price data nahi mila (yahoo/alphavantage dono fail).")
-    # yfinance 1.7+ kabhi-kabhi trailing NaN/partial bar deta hai (close=nan) — drop
-    df = df.dropna(subset=["Close"])
-    df = df[df["Close"] > 0]
-    if df.empty:
-        raise ValueError(f"{ticker} ka valid price data nahi mila (sab NaN bars).")
+        statuses = ", ".join(
+            f"{record['source']}={record['status']}" for record in source_health
+            if record["category"] in ("ohlcv-primary", "ohlcv-fallback")
+        )
+        raise ValueError(f"{ticker} ka valid price data nahi mila ({statuses}).")
 
     close = df["Close"]
     last = float(close.iloc[-1])
+    stale_days = max(0, (asof_ts.date() - df.index[-1].date()).days)
+    selected_status = "stale" if stale_days > 7 else "available"
+    source_health.append(health(
+        data_source.replace("alphavantage", "alpha-vantage"), "selected-ohlcv",
+        selected_status,
+        (f"selected history is {stale_days} calendar days behind analysis date"
+         if selected_status == "stale" else "selected history passed freshness threshold"),
+        rows=len(df), as_of=df.index[-1].date().isoformat(),
+    ).to_dict())
     try:
         info = t.info or {}
-    except Exception:
-        # Price history can work while Yahoo's quote-summary endpoint is blocked.
+        source_health.append(health(
+            "yahoo", "quote-summary", "available" if info else "empty",
+            "latest metadata/quote summary" if info else "quote summary was empty",
+            rows=1 if info else 0,
+        ).to_dict())
+    except Exception as exc:
         info = {}
+        status, detail = classify_exception(exc)
+        source_health.append(health("yahoo", "quote-summary", status, detail).to_dict())
     try:
-        is_historical = datetime.strptime(asof, "%Y-%m-%d").date() < datetime.now().date()
+        is_historical = datetime.strptime(asof, "%Y-%m-%d").date() < india_today()
     except ValueError:
         is_historical = False
     latest_quote_info = {} if is_historical else info
 
-    # ── MULTI-SOURCE CROSS-CHECK: NSE + AlphaVantage live quote vs yahoo last ──
+    # ── MULTI-SOURCE CROSS-CHECK: NSE + Alpha Vantage live quote vs selected history ──
     price_sources = [data_source if data_source != "yahoo" else "yfinance"]
     data_quality = ""
-    try:
-        if not is_historical:
-            from .sources import cross_check_price, get_alpha_vantage_quote, get_nse_quote
-            others = []
-            nq = get_nse_quote(ticker)
-            if nq:
-                others.append(("NSE", nq.get("last")))
-                price_sources.append("NSE")
-            avq = get_alpha_vantage_quote(ticker)
-            if avq:
-                others.append(("AlphaVantage", avq.get("price")))
-                price_sources.append("AlphaVantage")
-            _, data_quality = cross_check_price(last, others)
-        else:
-            data_quality = "Historical run: current live-quote cross-check suppressed"
-    except Exception:
-        pass
+    if not is_historical:
+        from .sources import cross_check_price, get_alpha_vantage_quote, get_nse_quote
+        others = []
+        for label, fetcher, category in (
+            ("NSE", get_nse_quote, "live-quote"),
+            ("AlphaVantage", get_alpha_vantage_quote, "live-quote"),
+        ):
+            try:
+                result = fetcher(ticker, with_health=True)
+                if isinstance(result, SourceResult):
+                    quote_value, quote_health = result.value, result.health
+                else:
+                    quote_value = result
+                    quote_health = health(
+                        label.lower(), category,
+                        "available" if quote_value else "empty", "adapter result",
+                    )
+                source_health.append(quote_health.to_dict())
+                if quote_value:
+                    quote_price = quote_value.get("last") if label == "NSE" else quote_value.get("price")
+                    others.append((label, quote_price))
+                    price_sources.append(label)
+            except Exception as exc:
+                status, detail = classify_exception(exc)
+                source_health.append(health(label.lower(), category, status, detail).to_dict())
+        _, data_quality = cross_check_price(last, others)
+    else:
+        data_quality = "Historical run: current live-quote cross-check suppressed"
+        source_health.extend(health_dicts(
+            health("nse", "live-quote", "suppressed", "historical PIT run"),
+            health("alpha-vantage", "live-quote", "suppressed", "historical PIT run"),
+        ))
 
     # indicators
     sma50 = _sma(close, 50); sma200 = _sma(close, 200)
@@ -335,21 +423,31 @@ def get_market_data(ticker: str, trade_date: str | None = None,
     vol20 = float(df["Volume"].rolling(20).mean().iloc[-1]) if len(df) >= 20 else float(df["Volume"].mean())
     vwma20 = float((close * df["Volume"]).rolling(20).sum().iloc[-1] / df["Volume"].rolling(20).sum().iloc[-1]) if len(df) >= 20 else None
     # Beta vs NIFTY (Yahoo ka beta S&P500 ke against hai — NSE stocks ke liye misleading)
+    # Keep the aligned benchmark frame as well: the deterministic strategy layer
+    # reuses it for relative strength instead of making another hidden download.
     beta_nifty = None
+    nb = None
     try:
-        nb = yf.Ticker("^NSEI").history(start=start, end=end, interval="1d", auto_adjust=True)
+        nb = clean_history(yf.Ticker("^NSEI").history(
+            start=start, end=end, interval="1d", auto_adjust=True,
+        ))
+        source_health.append(health(
+            "yahoo", "benchmark-history", "available" if not nb.empty else "empty",
+            "NIFTY 50 adjusted daily history" if not nb.empty else "no valid NIFTY rows",
+            rows=len(nb), as_of=nb.index[-1].date().isoformat() if len(nb) else None,
+        ).to_dict())
         if not nb.empty:
-            nb.index = nb.index.tz_localize(None)
-            nb = nb[nb.index <= pd.Timestamp(asof)]
-            j = pd.concat([close, nb["Close"]], axis=1, keys=["s", "n"]).dropna().tail(120)
-            if len(j) >= 60:
-                both = j.pct_change(fill_method=None).dropna()
+            joined = pd.concat([close, nb["Close"]], axis=1, keys=["s", "n"]).dropna().tail(120)
+            if len(joined) >= 60:
+                both = joined.pct_change(fill_method=None).dropna()
                 bench_var = float(both["n"].var())
                 if math.isfinite(bench_var) and bench_var > 1e-12:
                     beta = float(both["s"].cov(both["n"]) / bench_var)
                     beta_nifty = round(beta, 2) if math.isfinite(beta) else None
-    except Exception:
-        beta_nifty = None
+    except Exception as exc:
+        status, detail = classify_exception(exc)
+        source_health.append(health("yahoo", "benchmark-history", status, detail).to_dict())
+        nb = None
     # Bollinger
     boll_mid = _sma(close, 20)
     boll_std = close.rolling(20).std()
@@ -437,5 +535,16 @@ Date | Open | High | Low | Close | Volume
     }
     return {"indicator_block": ind_block, "snapshot": snapshot, "df": df,
             "close": close, "price": last, "info": info,
+            "benchmark_df": nb if nb is not None and not nb.empty else None,
             "data_source": data_source, "price_sources": price_sources,
-            "data_quality": data_quality}
+            "data_quality": data_quality, "source_health": source_health,
+            "provenance": {
+                "source": data_source, "adjusted": data_source == "yahoo",
+                "rows": len(df), "start": df.index[0].date().isoformat(),
+                "end": df.index[-1].date().isoformat(),
+                "limitations": ([
+                    "Yahoo history is a current adjusted-data vintage, not an immutable PIT archive",
+                ] if data_source == "yahoo" else [
+                    "Alpha Vantage fallback is unadjusted BSE daily data",
+                ]),
+            }}
