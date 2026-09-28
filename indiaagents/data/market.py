@@ -13,6 +13,8 @@ import yfinance as yf
 
 # A small map of popular NSE names -> ticker for friendly input ("reliance" -> RELIANCE.NS)
 POPULAR_NSE = {
+    "ujjivan": "UJJIVANSFB.NS", "ujjivan sfb": "UJJIVANSFB.NS",
+    "ujjivan small finance bank": "UJJIVANSFB.NS", "ujjivan bank": "UJJIVANSFB.NS",
     "reliance": "RELIANCE.NS", "tcs": "TCS.NS", "hdfc bank": "HDFCBANK.NS",
     "infosys": "INFY.NS", "icici bank": "ICICIBANK.NS", "infy": "INFY.NS",
     "sbi": "SBIN.NS", "state bank of india": "SBIN.NS", "bharti airtel": "BHARTIARTL.NS",
@@ -21,7 +23,9 @@ POPULAR_NSE = {
     "axis bank": "AXISBANK.NS", "kotak mahindra bank": "KOTAKBANK.NS",
     "kotak bank": "KOTAKBANK.NS", "asian paints": "ASIANPAINT.NS",
     "maruti": "MARUTI.NS", "maruti suzuki": "MARUTI.NS", "sun pharma": "SUNPHARMA.NS",
-    "tata motors": "TATAMOTORS.NS", "tata steel": "TATASTEEL.NS",
+    "tata motors": "TMPV.NS", "tata motors passenger": "TMPV.NS", "tmpv": "TMPV.NS",
+    "tata motors commercial": "TMCV.NS", "tmcv": "TMCV.NS",
+    "tata steel": "TATASTEEL.NS",
     "tata power": "TATAPOWER.NS", "titan": "TITAN.NS", "wipro": "WIPRO.NS",
     "hcl tech": "HCLTECH.NS", "hcl technologies": "HCLTECH.NS",
     "tech mahindra": "TECHM.NS", "ultratech cement": "ULTRACEMCO.NS",
@@ -249,13 +253,16 @@ def get_market_data(ticker: str, trade_date: str | None = None,
                     lookback_months: int = 6) -> dict:
     """Fetch OHLCV + compute indicators. Returns dict with data blocks for prompts."""
     t = yf.Ticker(ticker)
-    end = trade_date or datetime.now().strftime("%Y-%m-%d")
-    start = (datetime.strptime(end, "%Y-%m-%d") - timedelta(days=400)).strftime("%Y-%m-%d")
+    asof = trade_date or datetime.now().strftime("%Y-%m-%d")
+    # yfinance ka 'end' EXCLUSIVE hota hai — trade_date ka bar paane ke liye +1 din
+    end = (datetime.strptime(asof, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+    start = (datetime.strptime(asof, "%Y-%m-%d") - timedelta(days=400)).strftime("%Y-%m-%d")
     df = t.history(start=start, end=end, interval="1d", auto_adjust=True)
     if df.empty:
         raise ValueError(f"{ticker} ka price data nahi mila (yahoo).")
     df.index = df.index.tz_localize(None)
-    df = df[df.index <= pd.Timestamp(end)]
+    # point-in-time: asof date tak hi (future leak nahi)
+    df = df[df.index <= pd.Timestamp(asof)]
 
     close = df["Close"]
     last = float(close.iloc[-1])
@@ -269,6 +276,19 @@ def get_market_data(ticker: str, trade_date: str | None = None,
     atr = _atr(df)
     vol20 = float(df["Volume"].rolling(20).mean().iloc[-1]) if len(df) >= 20 else float(df["Volume"].mean())
     vwma20 = float((close * df["Volume"]).rolling(20).sum().iloc[-1] / df["Volume"].rolling(20).sum().iloc[-1]) if len(df) >= 20 else None
+    # Beta vs NIFTY (Yahoo ka beta S&P500 ke against hai — NSE stocks ke liye misleading)
+    beta_nifty = None
+    try:
+        nb = yf.Ticker("^NSEI").history(start=start, end=end, interval="1d", auto_adjust=True)
+        if not nb.empty:
+            nb.index = nb.index.tz_localize(None)
+            nb = nb[nb.index <= pd.Timestamp(asof)]
+            j = pd.concat([close, nb["Close"]], axis=1, keys=["s", "n"]).dropna().tail(120)
+            if len(j) >= 60:
+                both = j.pct_change().dropna()
+                beta_nifty = round(float(both["s"].cov(both["n"]) / both["n"].var()), 2)
+    except Exception:
+        beta_nifty = None
     # Bollinger
     boll_mid = _sma(close, 20)
     boll_std = close.rolling(20).std()
@@ -332,6 +352,7 @@ INDICATORS:
 - MACD: line={macd_l:.2f} signal={macd_s:.2f} hist={macd_h:.2f} ({'bullish' if macd_h > 0 else 'bearish'} momentum)
 - Bollinger(20,2): Upper ₹{_f(boll_ub)} | Mid ₹{_f(boll_mid.iloc[-1])} | Lower ₹{_f(boll_lb)}
 - ATR(14): {atr:.2f} (~{atr / last * 100:.1f}% of price — for stop-loss sizing)
+- Beta vs NIFTY (6M daily): {beta_nifty}
 - VWMA(20): {_f(vwma20)}
 - Volume: last {int(df['Volume'].iloc[-1]):,} vs 20-day avg {int(vol20):,} ({_vol_ratio(df['Volume'].iloc[-1], vol20)})
 
@@ -346,6 +367,7 @@ Date | Open | High | Low | Close | Volume
         "market_cap": info.get("marketCap"), "currency": info.get("currency", "INR"),
         "pe": info.get("trailingPE"), "forward_pe": info.get("forwardPE"),
         "pb": info.get("priceToBook"), "dividend_yield": info.get("dividendYield"),
+        "beta_nifty": beta_nifty,
         "beta": info.get("beta"), "website": info.get("website"),
         "rsi": round(rsi, 1), "from_52w_high": _pct(last, hi52),
         "from_52w_low": _pct(last, lo52), "ret_1m": rets["1m"], "ret_1y": rets["1y"],

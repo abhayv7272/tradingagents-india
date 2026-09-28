@@ -111,3 +111,88 @@ Ye project **educational research** ke liye hai — financial/investment advice 
 
 - [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0) — original multi-agent architecture
 - Data: Yahoo Finance (unofficial), Google News RSS, Reddit public feeds
+
+## Optional: extra FREE providers (zyada capacity + battle diversity)
+
+In sab OPTIONAL hain — jiska key mile wo Secrets mein add kar do:
+
+| Provider | Kahan se key | Free limit |
+|---|---|---|
+| `GROQ_API_KEY` | console.groq.com | 14,400 req/day (llama-3.1-8b) |
+| `CEREBRAS_API_KEY` | cloud.cerebras.ai | 14,400 req/day + 1M tokens/day (gpt-oss-120b) |
+| `SAMBANOVA_API_KEY` | cloud.sambanova.ai | ~20 req/day (backup) |
+
+Streamlit Secrets mein bas ek line aur:
+```toml
+GROQ_API_KEY = "gsk_..."
+CEREBRAS_API_KEY = "csk-..."
+SAMBANOVA_API_KEY = "..."
+```
+App khud detect karke sidebar badge aur battle rotation mein shamil kar degi.
+
+## 🧮 Quant Engine (Qlib-inspired)
+
+Microsoft Qlib ke Alpha158 approach se inspired deterministic layer (v1.2, Sep 2026):
+
+- **27 point-in-time factors** (KBAR/ROC/MA/STD/Volume/RSI/MACD/Bollinger/52w)
+- **ML Score 0-100** — HistGradientBoosting model, offline trained (49 NSE stocks, 6y, walk-forward val IC +0.029)
+- Har report mein **ML Quant Score card + Next results date** + PM ko deterministic anchor
+- Prompts calibrated (bearish≠short, scenario odds, R:R mandatory, conviction check)
+- **Reflection loop** — har run ke baad lesson save → agli report mein inject
+
+Retrain: `python3 scripts/train_ml_model.py` (monthly recommended; IC < 0.01 → model card auto-hide)
+Backtest: `python3 tests/backtest_quant.py` · POC: `tests/qlib_poc.py`
+Deep diagnosis: `python tests/test_diagnosis.py` — **96 tests** (lookahead-leak guard, ML determinism, regime flat/NaN guards, clamp/lock matrix, PM parse-retry wiring, report regime rows)
+
+## 🛡️ TradeHive Layer (hard discipline — Handshakeworm/TradeHive-TradingAgents se inspired)
+
+"Hard discipline + soft judgment" architecture — LLM jo bhi bole, CODE guard hai:
+
+- **7-regime deterministic state machine** (confirmed_uptrend → bottoming) — 5-of-6 rule
+- **Regime → position hard bands** (confirmed_downtrend = 0% LOCK; code clamp PM ke output pe)
+- **Reason-first JSON** — PM pehle rationale likhta hai, decision baad mein (KV-cache chain-of-thought)
+- **4-dim evidence structure** bull/bear mein (fundamentals/technicals/macro + reversal signals + conviction computation)
+- **Parse-error feedback retry** — LLM ko uski JSON galti wapas dikhti hai
+- Report mein: Market Regime + position band + clamp transparency note
+
+### Deep-dive 2 (source-code level adoption)
+
+Repo ke poore source (bull/bear researchers, RM, trader, PM, schemas, DEV_SPEC §1-7) padh
+kar jo aur mila:
+
+- **4-type reversal-signal taxonomy** (bull: topping / bear: bottoming mirror) — har type
+  ki quantitative definition: (a) volume-price divergence naye 20d swing high/low par,
+  (b) extreme one-sided sentiment, (c) price desensitization to catalyst, (d) decisive
+  ±8% reversal day on ≥1.5x volume + confirmation
+- **Anti-noise rules** — trending regime mein DEFAULT 0 signals; 2-day persistence with
+  cited DATES; single-day sirf decisive events ke liye; anti-double-counting (score
+  girana ≠ signal list karna); "NOT FOUND" type list-entries prohibited; RSI/MACD/
+  valuation ALONE = signal nahi
+- **Regime-relative scoring baselines** — downtrend mein bull technicals ka default 4-6
+  (weak bull evidence wahan NORMAL hai), uptrend mein bear technicals ka default 4-6;
+  normal pullback ≠ structural breakdown (bear over-scoring ka ilaaj)
+- **Bear researcher ko EQUAL evidence structure** — pehle sirf bull mein tha
+- **REGIME LOCK** — clamp ke baad BUY-0% inconsistent hota tha; ab decision HOLD/WAIT
+  lock hota hai transparent note ke saath (TradeHive ka "clamp ke baad action re-derive")
+- **Volume-profile position structure** (deterministic) — kahan volume concentrated hai,
+  overhead supply vs support-below, heaviest zones (S/R), new-highs-thin-volume /
+  selling-exhaustion flags
+- **Last-5-sessions table** ±3% ABNORMAL flags ke saath — LLM reversal signals mein
+  specific DATES cite kar sake
+- **PM engagement rules** — risk debate point-by-point address (rubber-stamp prohibited),
+  survivability check, 2+ reversal signals = downgrade weight, dimension agreement/
+  divergence tie-breaking
+- **Regime legal-transitions context** — "consolidation se seedha confirmed_uptrend
+  nahi hota" (PM/trader/risk team sab ko dikhta hai)
+- **Negation filter** — `key_risks` list se "NOT FOUND"/"None"/"N/A" entries drop
+  (TradeHive `filter_reversal_signals` ka adaptation)
+
+| Regime | Band | |
+|---|---|---|
+| confirmed_uptrend | 75-100% | full position |
+| early_uptrend | 30-60% | probe |
+| consolidation | 0-15% | watch |
+| topping | 20-40% | trim |
+| early_downtrend | 0-10% | retreat |
+| **confirmed_downtrend** | **0%** | **hard lock** |
+| bottoming | 5-20% | small probe |

@@ -54,8 +54,7 @@ GEMINI_MODEL_PREFERENCE = [
 ]
 
 GROQ_MODEL_PREFERENCE = [
-    "llama-3.3-70b-versatile", "llama-3.1-8b-instant",
-    "meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.1-70b-versatile",
+    "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "allam-2-7b",
 ]
 
 NVIDIA_MODEL_PREFERENCE = [
@@ -85,6 +84,13 @@ OPENROUTER_MODEL_PREFERENCE = [
 
 # Provider metadata: env vars for keys, base URL (OpenAI-compatible ones),
 # and a conservative minimum interval between calls to respect free RPM.
+CEREBRAS_MODEL_PREFERENCE = [
+    "gpt-oss-120b", "llama3.1-8b", "qwen-3-235b-a22b-instruct-2507", "zai-glm-4.7",
+]
+SAMBANOVA_MODEL_PREFERENCE = [
+    "Meta-Llama-3.3-70B-Instruct", "DeepSeek-V3.2", "MiniMax-M3", "gpt-oss-120b",
+]
+
 PROVIDERS: dict[str, dict] = {
     "gemini": {
         "key_env": ["GOOGLE_API_KEYS", "GOOGLE_API_KEY", "GEMINI_API_KEY"],  # pool supported
@@ -126,26 +132,44 @@ PROVIDERS: dict[str, dict] = {
         "model_env": "OPENROUTER_MODEL",
         "preference": OPENROUTER_MODEL_PREFERENCE,
     },
+    "cerebras": {
+        "key_env": ["CEREBRAS_API_KEY"],
+        "base_url": "https://api.cerebras.ai/v1",
+        "rpm": 30,
+        "min_interval": 2.5,
+        "model_env": "CEREBRAS_MODEL",
+        "preference": CEREBRAS_MODEL_PREFERENCE,
+    },
+    "sambanova": {
+        "key_env": ["SAMBANOVA_API_KEY"],
+        "base_url": "https://api.sambanova.ai/v1",
+        "rpm": 20,
+        "min_interval": 4.0,
+        "model_env": "SAMBANOVA_MODEL",
+        "preference": SAMBANOVA_MODEL_PREFERENCE,
+    },
 }
 
 # Role -> provider preference chain for BATTLE MODE.
 # Different model families get adversarial roles so they genuinely disagree.
 ROLE_ASSIGNMENTS: dict[str, list[str]] = {
-    "market_analyst":     ["gemini", "nvidia", "mistral", "openrouter"],
-    "fundamentals_analyst": ["nvidia", "gemini", "mistral", "openrouter"],
-    "news_analyst":       ["gemini", "mistral", "nvidia", "openrouter"],
-    "social_analyst":     ["mistral", "gemini", "nvidia", "openrouter"],
-    "bull_researcher":    ["nvidia", "gemini", "mistral", "openrouter"],
-    "bear_researcher":    ["mistral", "gemini", "nvidia", "openrouter"],
-    "research_manager":   ["nvidia", "gemini", "mistral", "openrouter"],   # deep judge (550B)
-    "battle_critic":      ["gemini", "nvidia", "mistral", "openrouter"],   # fanned out
-    "battle_synthesizer": ["gemini", "nvidia", "mistral", "openrouter"],   # deep
-    "trader":             ["gemini", "nvidia", "mistral", "openrouter"],
-    "aggressive_analyst": ["nvidia", "gemini", "mistral", "openrouter"],
-    "conservative_analyst": ["gemini", "nvidia", "mistral", "openrouter"],
-    "neutral_analyst":    ["mistral", "gemini", "nvidia", "openrouter"],
-    "portfolio_manager":  ["nvidia", "gemini", "mistral", "openrouter"],   # final call (550B)
-    "reflection":         ["gemini", "nvidia", "mistral", "openrouter"],
+    # Naye providers (groq/cerebras/github_models/sambanova) bhi chains mein
+    # hain — key na ho to engine automatically skip kar deta hai.
+    "market_analyst":       ["gemini", "nvidia", "groq", "cerebras", "mistral", "openrouter", "sambanova"],
+    "fundamentals_analyst": ["nvidia", "gemini", "mistral", "cerebras", "groq", "openrouter", "sambanova"],
+    "news_analyst":         ["groq", "gemini", "mistral", "nvidia", "cerebras", "openrouter", "sambanova"],
+    "social_analyst":       ["mistral", "gemini", "groq", "nvidia", "cerebras", "openrouter", "sambanova"],
+    "bull_researcher":      ["cerebras", "nvidia", "gemini", "mistral", "groq", "openrouter", "sambanova"],
+    "bear_researcher":      ["gemini", "mistral", "nvidia", "groq", "cerebras", "openrouter", "sambanova"],
+    "research_manager":     ["nvidia", "gemini", "mistral", "cerebras", "groq", "openrouter", "sambanova"],  # deep judge
+    "battle_critic":        ["gemini", "nvidia", "mistral", "groq", "cerebras", "openrouter", "sambanova"],  # fanned out
+    "battle_synthesizer":   ["nvidia", "gemini", "mistral", "cerebras", "groq", "openrouter", "sambanova"],  # deep
+    "trader":               ["gemini", "groq", "nvidia", "mistral", "cerebras", "openrouter", "sambanova"],
+    "aggressive_analyst":   ["cerebras", "groq", "nvidia", "gemini", "mistral", "openrouter", "sambanova"],
+    "conservative_analyst": ["gemini", "mistral", "nvidia", "groq", "cerebras", "openrouter", "sambanova"],
+    "neutral_analyst":      ["mistral", "gemini", "nvidia", "groq", "cerebras", "openrouter", "sambanova"],
+    "portfolio_manager":    ["nvidia", "gemini", "mistral", "cerebras", "groq", "openrouter", "sambanova"],  # final call
+    "reflection":           ["groq", "gemini", "nvidia", "mistral", "cerebras", "openrouter", "sambanova"],
 }
 
 DEEP_ROLES = {"research_manager", "battle_synthesizer", "portfolio_manager"}

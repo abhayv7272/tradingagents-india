@@ -64,6 +64,27 @@ def _growth(stmt, name: str) -> str:
         return "—"
 
 
+def _div_yield(info: dict) -> float | None:
+    """Sahi dividend yield % — dividendRate/price se compute (2026 yfinance
+    dividendYield already % mein aata hai, purane versions fraction dete the;
+    rate/price deterministic hai)."""
+    dr = info.get("dividendRate")
+    px = info.get("currentPrice") or info.get("regularMarketPrice")
+    if dr and px:
+        try:
+            return float(dr) / float(px) * 100
+        except (TypeError, ValueError):
+            return None
+    dy = info.get("dividendYield")
+    if dy is None:
+        return None
+    try:
+        dy = float(dy)
+        return dy if dy < 15 else dy / 100   # >15% yield rare — fraction maano
+    except (TypeError, ValueError):
+        return None
+
+
 def get_fundamentals_data(ticker: str, trade_date: str | None = None) -> dict:
     """Return a compact fundamentals text block + dict of key figures."""
     t = yf.Ticker(ticker)
@@ -128,8 +149,8 @@ CASH FLOW (latest FY):
 
 MARKET SNAPSHOT:
 - Market Cap: {inr(mcap) if mcap else '—'} | P/E (TTM): {_r(info.get('trailingPE'))} | Forward P/E: {_r(info.get('forwardPE'))}
-- P/B: {_r(info.get('priceToBook'))} | Dividend Yield: {_r((info.get('dividendYield') or 0) * 100 if info.get('dividendYield') else None, 2, '%')}
-- ROE: {_r(roe, 1, '%')} | ROA: {_r(roa, 1, '%')} | Beta: {_r(info.get('beta'))}
+- P/B: {_r(info.get('priceToBook'))} | Dividend Yield: {_r(_div_yield(info), 2, '%')}
+- ROE: {_r(roe, 1, '%')} | ROA: {_r(roa, 1, '%')} | Beta (global/S&P, indicative): {_r(info.get('beta'))}
 - Sector: {info.get('sector') or '—'} | Industry: {info.get('industry') or '—'}
 - Shares Out: {info.get("sharesOutstanding") and f"{info["sharesOutstanding"] / 1e7:.2f} Cr shares" or "—"}
 

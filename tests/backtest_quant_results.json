@@ -1,0 +1,2802 @@
+{
+ "rows": [
+  {
+   "ticker": "RELIANCE.NS",
+   "date": "2026-04-01",
+   "score": -6,
+   "label": "BEARISH",
+   "rsi": 43.6,
+   "mom_1m_pct": -2.67,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.86,
+     "alpha": -7.69
+    },
+    "10": {
+     "raw": -0.31,
+     "alpha": -7.69
+    },
+    "20": {
+     "raw": 6.86,
+     "alpha": 0.51
+    }
+   }
+  },
+  {
+   "ticker": "RELIANCE.NS",
+   "date": "2026-05-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 61.7,
+   "mom_1m_pct": 6.47,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 0.31,
+     "alpha": -0.44
+    },
+    "10": {
+     "raw": -6.6,
+     "alpha": -5.12
+    },
+    "20": {
+     "raw": -7.74,
+     "alpha": -5.18
+    }
+   }
+  },
+  {
+   "ticker": "RELIANCE.NS",
+   "date": "2026-06-01",
+   "score": -6,
+   "label": "BEARISH",
+   "rsi": 38.2,
+   "mom_1m_pct": -7.74,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -3.85,
+     "alpha": -2.74
+    },
+    "10": {
+     "raw": -0.53,
+     "alpha": -2.54
+    },
+    "20": {
+     "raw": -1.52,
+     "alpha": -3.59
+    }
+   }
+  },
+  {
+   "ticker": "RELIANCE.NS",
+   "date": "2026-07-01",
+   "score": -2,
+   "label": "NEUTRAL",
+   "rsi": 47.5,
+   "mom_1m_pct": -0.04,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.45,
+     "alpha": -1.94
+    },
+    "10": {
+     "raw": -0.96,
+     "alpha": -1.26
+    },
+    "20": {
+     "raw": -2.45,
+     "alpha": -3.47
+    }
+   }
+  },
+  {
+   "ticker": "RELIANCE.NS",
+   "date": "2026-08-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 53.4,
+   "mom_1m_pct": 0.33,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 2.06,
+     "alpha": 1.3
+    },
+    "10": {
+     "raw": 0.17,
+     "alpha": 0.24
+    },
+    "20": {
+     "raw": -1.59,
+     "alpha": -0.74
+    }
+   }
+  },
+  {
+   "ticker": "RELIANCE.NS",
+   "date": "2026-09-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 51.5,
+   "mom_1m_pct": -0.76,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -1.08,
+     "alpha": 0.67
+    },
+    "10": {
+     "raw": -5.27,
+     "alpha": -1.79
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "TCS.NS",
+   "date": "2026-04-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 36.5,
+   "mom_1m_pct": -9.05,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 7.51,
+     "alpha": 2.68
+    },
+    "10": {
+     "raw": 7.2,
+     "alpha": -0.19
+    },
+    "20": {
+     "raw": 0.96,
+     "alpha": -5.39
+    }
+   }
+  },
+  {
+   "ticker": "TCS.NS",
+   "date": "2026-05-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 46.1,
+   "mom_1m_pct": 4.88,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -3.21,
+     "alpha": -3.96
+    },
+    "10": {
+     "raw": -8.48,
+     "alpha": -7.01
+    },
+    "20": {
+     "raw": -5.88,
+     "alpha": -3.31
+    }
+   }
+  },
+  {
+   "ticker": "TCS.NS",
+   "date": "2026-06-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 44.5,
+   "mom_1m_pct": -5.88,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -6.36,
+     "alpha": -5.24
+    },
+    "10": {
+     "raw": -5.89,
+     "alpha": -7.91
+    },
+    "20": {
+     "raw": -11.57,
+     "alpha": -13.64
+    }
+   }
+  },
+  {
+   "ticker": "TCS.NS",
+   "date": "2026-07-01",
+   "score": -5,
+   "label": "BEARISH",
+   "rsi": 29.3,
+   "mom_1m_pct": -18.98,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 1
+   },
+   "fwd": {
+    "5": {
+     "raw": 3.78,
+     "alpha": 4.29
+    },
+    "10": {
+     "raw": 11.03,
+     "alpha": 10.72
+    },
+    "20": {
+     "raw": 24.08,
+     "alpha": 23.06
+    }
+   }
+  },
+  {
+   "ticker": "TCS.NS",
+   "date": "2026-08-01",
+   "score": 4,
+   "label": "BULLISH",
+   "rsi": 62.7,
+   "mom_1m_pct": 15.01,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 3.68,
+     "alpha": 2.91
+    },
+    "10": {
+     "raw": -0.19,
+     "alpha": -0.12
+    },
+    "20": {
+     "raw": -1.0,
+     "alpha": -0.14
+    }
+   }
+  },
+  {
+   "ticker": "TCS.NS",
+   "date": "2026-09-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 55.3,
+   "mom_1m_pct": -4.23,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -4.79,
+     "alpha": -3.04
+    },
+    "10": {
+     "raw": -7.61,
+     "alpha": -4.12
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "HDFCBANK.NS",
+   "date": "2026-04-01",
+   "score": -5,
+   "label": "BEARISH",
+   "rsi": 30.0,
+   "mom_1m_pct": -17.4,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 1
+   },
+   "fwd": {
+    "5": {
+     "raw": 7.47,
+     "alpha": 2.64
+    },
+    "10": {
+     "raw": 7.77,
+     "alpha": 0.39
+    },
+    "20": {
+     "raw": 5.01,
+     "alpha": -1.34
+    }
+   }
+  },
+  {
+   "ticker": "HDFCBANK.NS",
+   "date": "2026-05-01",
+   "score": -2,
+   "label": "NEUTRAL",
+   "rsi": 41.2,
+   "mom_1m_pct": 5.49,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 1.19,
+     "alpha": 0.44
+    },
+    "10": {
+     "raw": -0.54,
+     "alpha": 0.93
+    },
+    "20": {
+     "raw": -3.76,
+     "alpha": -1.2
+    }
+   }
+  },
+  {
+   "ticker": "HDFCBANK.NS",
+   "date": "2026-06-01",
+   "score": -6,
+   "label": "BEARISH",
+   "rsi": 38.2,
+   "mom_1m_pct": -3.76,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.55,
+     "alpha": 0.56
+    },
+    "10": {
+     "raw": 4.67,
+     "alpha": 2.65
+    },
+    "20": {
+     "raw": 9.22,
+     "alpha": 7.15
+    }
+   }
+  },
+  {
+   "ticker": "HDFCBANK.NS",
+   "date": "2026-07-01",
+   "score": 4,
+   "label": "BULLISH",
+   "rsi": 63.4,
+   "mom_1m_pct": 8.16,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 1.78,
+     "alpha": 2.29
+    },
+    "10": {
+     "raw": 2.42,
+     "alpha": 2.12
+    },
+    "20": {
+     "raw": -6.02,
+     "alpha": -7.04
+    }
+   }
+  },
+  {
+   "ticker": "HDFCBANK.NS",
+   "date": "2026-08-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 39.3,
+   "mom_1m_pct": -6.0,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.29,
+     "alpha": -3.06
+    },
+    "10": {
+     "raw": -2.83,
+     "alpha": -2.75
+    },
+    "20": {
+     "raw": -3.72,
+     "alpha": -2.87
+    }
+   }
+  },
+  {
+   "ticker": "HDFCBANK.NS",
+   "date": "2026-09-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 35.6,
+   "mom_1m_pct": -5.46,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -1.25,
+     "alpha": 0.5
+    },
+    "10": {
+     "raw": 1.35,
+     "alpha": 4.83
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "INFY.NS",
+   "date": "2026-04-01",
+   "score": -2,
+   "label": "NEUTRAL",
+   "rsi": 43.4,
+   "mom_1m_pct": -1.04,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 4.38,
+     "alpha": -0.45
+    },
+    "10": {
+     "raw": 3.37,
+     "alpha": -4.01
+    },
+    "20": {
+     "raw": -8.41,
+     "alpha": -14.76
+    }
+   }
+  },
+  {
+   "ticker": "INFY.NS",
+   "date": "2026-05-01",
+   "score": -6,
+   "label": "BEARISH",
+   "rsi": 35.9,
+   "mom_1m_pct": -5.5,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.22,
+     "alpha": -0.96
+    },
+    "10": {
+     "raw": -5.31,
+     "alpha": -3.84
+    },
+    "20": {
+     "raw": 1.75,
+     "alpha": 4.31
+    }
+   }
+  },
+  {
+   "ticker": "INFY.NS",
+   "date": "2026-06-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 54.4,
+   "mom_1m_pct": 1.75,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -1.24,
+     "alpha": -0.13
+    },
+    "10": {
+     "raw": -3.58,
+     "alpha": -5.59
+    },
+    "20": {
+     "raw": -15.01,
+     "alpha": -17.07
+    }
+   }
+  },
+  {
+   "ticker": "INFY.NS",
+   "date": "2026-07-01",
+   "score": -5,
+   "label": "BEARISH",
+   "rsi": 29.4,
+   "mom_1m_pct": -20.79,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 1
+   },
+   "fwd": {
+    "5": {
+     "raw": 8.53,
+     "alpha": 9.04
+    },
+    "10": {
+     "raw": 9.24,
+     "alpha": 8.93
+    },
+    "20": {
+     "raw": 17.28,
+     "alpha": 16.27
+    }
+   }
+  },
+  {
+   "ticker": "INFY.NS",
+   "date": "2026-08-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 57.7,
+   "mom_1m_pct": 8.57,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 3.98,
+     "alpha": 3.21
+    },
+    "10": {
+     "raw": 3.46,
+     "alpha": 3.53
+    },
+    "20": {
+     "raw": 1.23,
+     "alpha": 2.08
+    }
+   }
+  },
+  {
+   "ticker": "INFY.NS",
+   "date": "2026-09-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 55.4,
+   "mom_1m_pct": -2.03,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -6.4,
+     "alpha": -4.65
+    },
+    "10": {
+     "raw": -8.3,
+     "alpha": -4.82
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "ICICIBANK.NS",
+   "date": "2026-04-01",
+   "score": -5,
+   "label": "BEARISH",
+   "rsi": 32.9,
+   "mom_1m_pct": -13.68,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 1
+   },
+   "fwd": {
+    "5": {
+     "raw": 5.66,
+     "alpha": 0.83
+    },
+    "10": {
+     "raw": 11.06,
+     "alpha": 3.68
+    },
+    "20": {
+     "raw": 4.79,
+     "alpha": -1.56
+    }
+   }
+  },
+  {
+   "ticker": "ICICIBANK.NS",
+   "date": "2026-05-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 40.3,
+   "mom_1m_pct": 4.77,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 0.11,
+     "alpha": -0.63
+    },
+    "10": {
+     "raw": -1.5,
+     "alpha": -0.02
+    },
+    "20": {
+     "raw": -1.88,
+     "alpha": 0.69
+    }
+   }
+  },
+  {
+   "ticker": "ICICIBANK.NS",
+   "date": "2026-06-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 41.2,
+   "mom_1m_pct": -1.88,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 0.85,
+     "alpha": 1.96
+    },
+    "10": {
+     "raw": 7.09,
+     "alpha": 5.07
+    },
+    "20": {
+     "raw": 10.93,
+     "alpha": 8.86
+    }
+   }
+  },
+  {
+   "ticker": "ICICIBANK.NS",
+   "date": "2026-07-01",
+   "score": 3,
+   "label": "BULLISH",
+   "rsi": 66.9,
+   "mom_1m_pct": 12.49,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": -1
+   },
+   "fwd": {
+    "5": {
+     "raw": 0.06,
+     "alpha": 0.57
+    },
+    "10": {
+     "raw": 2.64,
+     "alpha": 2.34
+    },
+    "20": {
+     "raw": 4.21,
+     "alpha": 3.19
+    }
+   }
+  },
+  {
+   "ticker": "ICICIBANK.NS",
+   "date": "2026-08-01",
+   "score": 4,
+   "label": "BULLISH",
+   "rsi": 59.4,
+   "mom_1m_pct": 2.53,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.17,
+     "alpha": -0.94
+    },
+    "10": {
+     "raw": -0.45,
+     "alpha": -0.38
+    },
+    "20": {
+     "raw": -0.04,
+     "alpha": 0.81
+    }
+   }
+  },
+  {
+   "ticker": "ICICIBANK.NS",
+   "date": "2026-09-01",
+   "score": 4,
+   "label": "BULLISH",
+   "rsi": 54.8,
+   "mom_1m_pct": -1.51,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.68,
+     "alpha": -0.94
+    },
+    "10": {
+     "raw": -5.51,
+     "alpha": -2.02
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "SBIN.NS",
+   "date": "2026-04-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 38.8,
+   "mom_1m_pct": -15.85,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 2.27,
+     "alpha": -2.56
+    },
+    "10": {
+     "raw": 6.14,
+     "alpha": -1.25
+    },
+    "20": {
+     "raw": 4.97,
+     "alpha": -1.38
+    }
+   }
+  },
+  {
+   "ticker": "SBIN.NS",
+   "date": "2026-05-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 46.6,
+   "mom_1m_pct": 9.09,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -4.6,
+     "alpha": -5.34
+    },
+    "10": {
+     "raw": -8.23,
+     "alpha": -6.75
+    },
+    "20": {
+     "raw": -9.09,
+     "alpha": -6.53
+    }
+   }
+  },
+  {
+   "ticker": "SBIN.NS",
+   "date": "2026-06-01",
+   "score": -2,
+   "label": "NEUTRAL",
+   "rsi": 36.8,
+   "mom_1m_pct": -9.09,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 2.92,
+     "alpha": 4.03
+    },
+    "10": {
+     "raw": 7.0,
+     "alpha": 4.98
+    },
+    "20": {
+     "raw": 7.63,
+     "alpha": 5.56
+    }
+   }
+  },
+  {
+   "ticker": "SBIN.NS",
+   "date": "2026-07-01",
+   "score": 6,
+   "label": "BULLISH",
+   "rsi": 61.6,
+   "mom_1m_pct": 9.49,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.91,
+     "alpha": -2.4
+    },
+    "10": {
+     "raw": -1.65,
+     "alpha": -1.95
+    },
+    "20": {
+     "raw": -3.22,
+     "alpha": -4.24
+    }
+   }
+  },
+  {
+   "ticker": "SBIN.NS",
+   "date": "2026-08-01",
+   "score": -2,
+   "label": "NEUTRAL",
+   "rsi": 50.9,
+   "mom_1m_pct": -2.3,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 6.79,
+     "alpha": 6.03
+    },
+    "10": {
+     "raw": 3.92,
+     "alpha": 3.99
+    },
+    "20": {
+     "raw": 1.96,
+     "alpha": 2.81
+    }
+   }
+  },
+  {
+   "ticker": "SBIN.NS",
+   "date": "2026-09-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 44.5,
+   "mom_1m_pct": -1.0,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.56,
+     "alpha": -0.81
+    },
+    "10": {
+     "raw": -4.17,
+     "alpha": -0.68
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "ITC.NS",
+   "date": "2026-04-01",
+   "score": -6,
+   "label": "BEARISH",
+   "rsi": 36.2,
+   "mom_1m_pct": -8.36,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 3.87,
+     "alpha": -0.96
+    },
+    "10": {
+     "raw": 5.18,
+     "alpha": -2.21
+    },
+    "20": {
+     "raw": 6.65,
+     "alpha": 0.3
+    }
+   }
+  },
+  {
+   "ticker": "ITC.NS",
+   "date": "2026-05-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 61.0,
+   "mom_1m_pct": 9.45,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.37,
+     "alpha": -3.11
+    },
+    "10": {
+     "raw": -1.73,
+     "alpha": -0.26
+    },
+    "20": {
+     "raw": -8.77,
+     "alpha": -6.21
+    }
+   }
+  },
+  {
+   "ticker": "ITC.NS",
+   "date": "2026-06-01",
+   "score": -3,
+   "label": "BEARISH",
+   "rsi": 28.5,
+   "mom_1m_pct": -8.77,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 1
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.07,
+     "alpha": 1.04
+    },
+    "10": {
+     "raw": 2.95,
+     "alpha": 0.93
+    },
+    "20": {
+     "raw": 2.61,
+     "alpha": 0.54
+    }
+   }
+  },
+  {
+   "ticker": "ITC.NS",
+   "date": "2026-07-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 51.4,
+   "mom_1m_pct": 2.49,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -3.32,
+     "alpha": -2.81
+    },
+    "10": {
+     "raw": -4.7,
+     "alpha": -5.0
+    },
+    "20": {
+     "raw": -1.4,
+     "alpha": -2.41
+    }
+   }
+  },
+  {
+   "ticker": "ITC.NS",
+   "date": "2026-08-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 43.7,
+   "mom_1m_pct": -3.07,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 1.81,
+     "alpha": 1.05
+    },
+    "10": {
+     "raw": -1.0,
+     "alpha": -0.92
+    },
+    "20": {
+     "raw": -5.34,
+     "alpha": -4.49
+    }
+   }
+  },
+  {
+   "ticker": "ITC.NS",
+   "date": "2026-09-01",
+   "score": -6,
+   "label": "BEARISH",
+   "rsi": 41.7,
+   "mom_1m_pct": -7.11,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -1.16,
+     "alpha": 0.59
+    },
+    "10": {
+     "raw": -0.92,
+     "alpha": 2.57
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "BHARTIARTL.NS",
+   "date": "2026-04-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 36.6,
+   "mom_1m_pct": -7.65,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 4.35,
+     "alpha": -0.48
+    },
+    "10": {
+     "raw": 3.65,
+     "alpha": -3.73
+    },
+    "20": {
+     "raw": 2.54,
+     "alpha": -3.81
+    }
+   }
+  },
+  {
+   "ticker": "BHARTIARTL.NS",
+   "date": "2026-05-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 57.9,
+   "mom_1m_pct": 5.86,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.77,
+     "alpha": -3.52
+    },
+    "10": {
+     "raw": 0.99,
+     "alpha": 2.46
+    },
+    "20": {
+     "raw": -4.04,
+     "alpha": -1.48
+    }
+   }
+  },
+  {
+   "ticker": "BHARTIARTL.NS",
+   "date": "2026-06-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 42.1,
+   "mom_1m_pct": -4.04,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 0.15,
+     "alpha": 1.26
+    },
+    "10": {
+     "raw": 1.69,
+     "alpha": -0.33
+    },
+    "20": {
+     "raw": 2.29,
+     "alpha": 0.22
+    }
+   }
+  },
+  {
+   "ticker": "BHARTIARTL.NS",
+   "date": "2026-07-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 54.1,
+   "mom_1m_pct": 3.13,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 0.91,
+     "alpha": 1.43
+    },
+    "10": {
+     "raw": 2.53,
+     "alpha": 2.23
+    },
+    "20": {
+     "raw": 5.54,
+     "alpha": 4.53
+    }
+   }
+  },
+  {
+   "ticker": "BHARTIARTL.NS",
+   "date": "2026-08-01",
+   "score": 3,
+   "label": "BULLISH",
+   "rsi": 67.2,
+   "mom_1m_pct": 6.5,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": -1
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.61,
+     "alpha": -1.38
+    },
+    "10": {
+     "raw": 1.02,
+     "alpha": 1.09
+    },
+    "20": {
+     "raw": -4.54,
+     "alpha": -3.69
+    }
+   }
+  },
+  {
+   "ticker": "BHARTIARTL.NS",
+   "date": "2026-09-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 44.5,
+   "mom_1m_pct": -4.73,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -1.77,
+     "alpha": -0.02
+    },
+    "10": {
+     "raw": -2.25,
+     "alpha": 1.24
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "LT.NS",
+   "date": "2026-04-01",
+   "score": -2,
+   "label": "NEUTRAL",
+   "rsi": 44.6,
+   "mom_1m_pct": -15.84,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 8.0,
+     "alpha": 3.17
+    },
+    "10": {
+     "raw": 13.54,
+     "alpha": 6.16
+    },
+    "20": {
+     "raw": 13.67,
+     "alpha": 7.33
+    }
+   }
+  },
+  {
+   "ticker": "LT.NS",
+   "date": "2026-05-01",
+   "score": 6,
+   "label": "BULLISH",
+   "rsi": 54.2,
+   "mom_1m_pct": 14.55,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.98,
+     "alpha": -1.73
+    },
+    "10": {
+     "raw": -2.62,
+     "alpha": -1.14
+    },
+    "20": {
+     "raw": 0.9,
+     "alpha": 3.46
+    }
+   }
+  },
+  {
+   "ticker": "LT.NS",
+   "date": "2026-06-01",
+   "score": 6,
+   "label": "BULLISH",
+   "rsi": 55.3,
+   "mom_1m_pct": 0.9,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -3.37,
+     "alpha": -2.26
+    },
+    "10": {
+     "raw": 3.96,
+     "alpha": 1.95
+    },
+    "20": {
+     "raw": 3.31,
+     "alpha": 1.24
+    }
+   }
+  },
+  {
+   "ticker": "LT.NS",
+   "date": "2026-07-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 50.4,
+   "mom_1m_pct": 2.29,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -4.9,
+     "alpha": -4.38
+    },
+    "10": {
+     "raw": -7.54,
+     "alpha": -7.85
+    },
+    "20": {
+     "raw": -3.94,
+     "alpha": -4.96
+    }
+   }
+  },
+  {
+   "ticker": "LT.NS",
+   "date": "2026-08-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 52.8,
+   "mom_1m_pct": -2.97,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 2.97,
+     "alpha": 2.21
+    },
+    "10": {
+     "raw": 3.0,
+     "alpha": 3.07
+    },
+    "20": {
+     "raw": 2.71,
+     "alpha": 3.57
+    }
+   }
+  },
+  {
+   "ticker": "LT.NS",
+   "date": "2026-09-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 44.3,
+   "mom_1m_pct": -1.12,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.85,
+     "alpha": 0.89
+    },
+    "10": {
+     "raw": -4.33,
+     "alpha": -0.85
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "TATASTEEL.NS",
+   "date": "2026-04-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 49.3,
+   "mom_1m_pct": -9.71,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 5.45,
+     "alpha": 0.62
+    },
+    "10": {
+     "raw": 9.0,
+     "alpha": 1.62
+    },
+    "20": {
+     "raw": 9.06,
+     "alpha": 2.72
+    }
+   }
+  },
+  {
+   "ticker": "TATASTEEL.NS",
+   "date": "2026-05-01",
+   "score": 6,
+   "label": "BULLISH",
+   "rsi": 57.7,
+   "mom_1m_pct": 10.16,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 1.48,
+     "alpha": 0.74
+    },
+    "10": {
+     "raw": 2.59,
+     "alpha": 4.07
+    },
+    "20": {
+     "raw": -0.37,
+     "alpha": 2.19
+    }
+   }
+  },
+  {
+   "ticker": "TATASTEEL.NS",
+   "date": "2026-06-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 49.5,
+   "mom_1m_pct": -0.37,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -3.73,
+     "alpha": -2.62
+    },
+    "10": {
+     "raw": -4.38,
+     "alpha": -6.39
+    },
+    "20": {
+     "raw": -8.85,
+     "alpha": -10.91
+    }
+   }
+  },
+  {
+   "ticker": "TATASTEEL.NS",
+   "date": "2026-07-01",
+   "score": -3,
+   "label": "BEARISH",
+   "rsi": 28.7,
+   "mom_1m_pct": -10.26,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 1
+   },
+   "fwd": {
+    "5": {
+     "raw": 1.64,
+     "alpha": 2.15
+    },
+    "10": {
+     "raw": 0.05,
+     "alpha": -0.25
+    },
+    "20": {
+     "raw": 1.13,
+     "alpha": 0.12
+    }
+   }
+  },
+  {
+   "ticker": "TATASTEEL.NS",
+   "date": "2026-08-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 52.5,
+   "mom_1m_pct": 1.08,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -1.13,
+     "alpha": -1.9
+    },
+    "10": {
+     "raw": -3.26,
+     "alpha": -3.19
+    },
+    "20": {
+     "raw": -1.68,
+     "alpha": -0.83
+    }
+   }
+  },
+  {
+   "ticker": "TATASTEEL.NS",
+   "date": "2026-09-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 43.2,
+   "mom_1m_pct": -3.63,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 0.04,
+     "alpha": 1.79
+    },
+    "10": {
+     "raw": -0.58,
+     "alpha": 2.9
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "AXISBANK.NS",
+   "date": "2026-04-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 40.4,
+   "mom_1m_pct": -14.5,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 10.51,
+     "alpha": 5.68
+    },
+    "10": {
+     "raw": 13.91,
+     "alpha": 6.53
+    },
+    "20": {
+     "raw": 6.87,
+     "alpha": 0.52
+    }
+   }
+  },
+  {
+   "ticker": "AXISBANK.NS",
+   "date": "2026-05-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 42.2,
+   "mom_1m_pct": 9.21,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 0.0,
+     "alpha": -0.74
+    },
+    "10": {
+     "raw": -1.85,
+     "alpha": -0.38
+    },
+    "20": {
+     "raw": 0.6,
+     "alpha": 3.16
+    }
+   }
+  },
+  {
+   "ticker": "AXISBANK.NS",
+   "date": "2026-06-01",
+   "score": 4,
+   "label": "BULLISH",
+   "rsi": 48.0,
+   "mom_1m_pct": 0.6,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.61,
+     "alpha": 0.5
+    },
+    "10": {
+     "raw": 7.24,
+     "alpha": 5.23
+    },
+    "20": {
+     "raw": 5.47,
+     "alpha": 3.4
+    }
+   }
+  },
+  {
+   "ticker": "AXISBANK.NS",
+   "date": "2026-07-01",
+   "score": 4,
+   "label": "BULLISH",
+   "rsi": 60.5,
+   "mom_1m_pct": 9.4,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -4.33,
+     "alpha": -3.81
+    },
+    "10": {
+     "raw": -4.05,
+     "alpha": -4.35
+    },
+    "20": {
+     "raw": -9.67,
+     "alpha": -10.69
+    }
+   }
+  },
+  {
+   "ticker": "AXISBANK.NS",
+   "date": "2026-08-01",
+   "score": -3,
+   "label": "BEARISH",
+   "rsi": 33.9,
+   "mom_1m_pct": -9.7,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 1
+   },
+   "fwd": {
+    "5": {
+     "raw": 0.69,
+     "alpha": -0.08
+    },
+    "10": {
+     "raw": -0.98,
+     "alpha": -0.91
+    },
+    "20": {
+     "raw": 2.89,
+     "alpha": 3.74
+    }
+   }
+  },
+  {
+   "ticker": "AXISBANK.NS",
+   "date": "2026-09-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 50.7,
+   "mom_1m_pct": -1.1,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -1.04,
+     "alpha": 0.71
+    },
+    "10": {
+     "raw": -1.35,
+     "alpha": 2.13
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "KOTAKBANK.NS",
+   "date": "2026-04-01",
+   "score": -5,
+   "label": "BEARISH",
+   "rsi": 32.6,
+   "mom_1m_pct": -16.13,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 1
+   },
+   "fwd": {
+    "5": {
+     "raw": 4.45,
+     "alpha": -0.38
+    },
+    "10": {
+     "raw": 7.74,
+     "alpha": 0.36
+    },
+    "20": {
+     "raw": 4.38,
+     "alpha": -1.97
+    }
+   }
+  },
+  {
+   "ticker": "KOTAKBANK.NS",
+   "date": "2026-05-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 54.2,
+   "mom_1m_pct": 8.46,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.65,
+     "alpha": -1.4
+    },
+    "10": {
+     "raw": 0.98,
+     "alpha": 2.45
+    },
+    "20": {
+     "raw": -1.54,
+     "alpha": 1.02
+    }
+   }
+  },
+  {
+   "ticker": "KOTAKBANK.NS",
+   "date": "2026-06-01",
+   "score": -2,
+   "label": "NEUTRAL",
+   "rsi": 45.0,
+   "mom_1m_pct": -1.54,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.08,
+     "alpha": 1.03
+    },
+    "10": {
+     "raw": 7.51,
+     "alpha": 5.5
+    },
+    "20": {
+     "raw": 3.93,
+     "alpha": 1.87
+    }
+   }
+  },
+  {
+   "ticker": "KOTAKBANK.NS",
+   "date": "2026-07-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 54.7,
+   "mom_1m_pct": 5.65,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -7.58,
+     "alpha": -7.06
+    },
+    "10": {
+     "raw": -5.51,
+     "alpha": -5.81
+    },
+    "20": {
+     "raw": -2.39,
+     "alpha": -3.41
+    }
+   }
+  },
+  {
+   "ticker": "KOTAKBANK.NS",
+   "date": "2026-08-01",
+   "score": -2,
+   "label": "NEUTRAL",
+   "rsi": 53.9,
+   "mom_1m_pct": -2.09,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 0.12,
+     "alpha": -0.65
+    },
+    "10": {
+     "raw": 0.22,
+     "alpha": 0.29
+    },
+    "20": {
+     "raw": 8.56,
+     "alpha": 9.41
+    }
+   }
+  },
+  {
+   "ticker": "KOTAKBANK.NS",
+   "date": "2026-09-01",
+   "score": 3,
+   "label": "BULLISH",
+   "rsi": 71.5,
+   "mom_1m_pct": 6.92,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": -1
+   },
+   "fwd": {
+    "5": {
+     "raw": -1.35,
+     "alpha": 0.4
+    },
+    "10": {
+     "raw": -2.35,
+     "alpha": 1.13
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "TITAN.NS",
+   "date": "2026-04-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 48.4,
+   "mom_1m_pct": -6.38,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 9.21,
+     "alpha": 4.38
+    },
+    "10": {
+     "raw": 11.32,
+     "alpha": 3.94
+    },
+    "20": {
+     "raw": 7.32,
+     "alpha": 0.97
+    }
+   }
+  },
+  {
+   "ticker": "TITAN.NS",
+   "date": "2026-05-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 52.6,
+   "mom_1m_pct": 10.98,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 2.82,
+     "alpha": 2.08
+    },
+    "10": {
+     "raw": -4.93,
+     "alpha": -3.45
+    },
+    "20": {
+     "raw": -8.22,
+     "alpha": -5.66
+    }
+   }
+  },
+  {
+   "ticker": "TITAN.NS",
+   "date": "2026-06-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 37.8,
+   "mom_1m_pct": -8.22,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 4.17,
+     "alpha": 5.28
+    },
+    "10": {
+     "raw": 6.43,
+     "alpha": 4.42
+    },
+    "20": {
+     "raw": 9.43,
+     "alpha": 7.36
+    }
+   }
+  },
+  {
+   "ticker": "TITAN.NS",
+   "date": "2026-07-01",
+   "score": 6,
+   "label": "BULLISH",
+   "rsi": 59.9,
+   "mom_1m_pct": 7.86,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 4.27,
+     "alpha": 4.79
+    },
+    "10": {
+     "raw": 4.45,
+     "alpha": 4.15
+    },
+    "20": {
+     "raw": 10.63,
+     "alpha": 9.61
+    }
+   }
+  },
+  {
+   "ticker": "TITAN.NS",
+   "date": "2026-08-01",
+   "score": 5,
+   "label": "BULLISH",
+   "rsi": 78.9,
+   "mom_1m_pct": 9.15,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": -1
+   },
+   "fwd": {
+    "5": {
+     "raw": 1.35,
+     "alpha": 0.58
+    },
+    "10": {
+     "raw": 3.71,
+     "alpha": 3.78
+    },
+    "20": {
+     "raw": 6.03,
+     "alpha": 6.88
+    }
+   }
+  },
+  {
+   "ticker": "TITAN.NS",
+   "date": "2026-09-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 56.3,
+   "mom_1m_pct": 1.0,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -1.25,
+     "alpha": 0.5
+    },
+    "10": {
+     "raw": -2.8,
+     "alpha": 0.68
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "SUNPHARMA.NS",
+   "date": "2026-04-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 43.4,
+   "mom_1m_pct": -3.2,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.66,
+     "alpha": -5.49
+    },
+    "10": {
+     "raw": -3.07,
+     "alpha": -10.45
+    },
+    "20": {
+     "raw": 5.5,
+     "alpha": -0.85
+    }
+   }
+  },
+  {
+   "ticker": "SUNPHARMA.NS",
+   "date": "2026-05-01",
+   "score": 4,
+   "label": "BULLISH",
+   "rsi": 63.1,
+   "mom_1m_pct": 2.91,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 2.19,
+     "alpha": 1.45
+    },
+    "10": {
+     "raw": 3.87,
+     "alpha": 5.34
+    },
+    "20": {
+     "raw": -0.65,
+     "alpha": 1.91
+    }
+   }
+  },
+  {
+   "ticker": "SUNPHARMA.NS",
+   "date": "2026-06-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 44.8,
+   "mom_1m_pct": -0.65,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": -1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.43,
+     "alpha": 0.68
+    },
+    "10": {
+     "raw": 0.53,
+     "alpha": -1.49
+    },
+    "20": {
+     "raw": 3.67,
+     "alpha": 1.61
+    }
+   }
+  },
+  {
+   "ticker": "SUNPHARMA.NS",
+   "date": "2026-07-01",
+   "score": 6,
+   "label": "BULLISH",
+   "rsi": 61.3,
+   "mom_1m_pct": 4.26,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 1.44,
+     "alpha": 1.96
+    },
+    "10": {
+     "raw": 4.84,
+     "alpha": 4.54
+    },
+    "20": {
+     "raw": 6.91,
+     "alpha": 5.89
+    }
+   }
+  },
+  {
+   "ticker": "SUNPHARMA.NS",
+   "date": "2026-08-01",
+   "score": 5,
+   "label": "BULLISH",
+   "rsi": 66.9,
+   "mom_1m_pct": 6.67,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": -1
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.29,
+     "alpha": -3.05
+    },
+    "10": {
+     "raw": -3.04,
+     "alpha": -2.97
+    },
+    "20": {
+     "raw": -3.54,
+     "alpha": -2.69
+    }
+   }
+  },
+  {
+   "ticker": "SUNPHARMA.NS",
+   "date": "2026-09-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 50.7,
+   "mom_1m_pct": -1.76,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": 1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.23,
+     "alpha": -0.49
+    },
+    "10": {
+     "raw": -3.91,
+     "alpha": -0.43
+    },
+    "20": null
+   }
+  },
+  {
+   "ticker": "MARUTI.NS",
+   "date": "2026-04-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 35.1,
+   "mom_1m_pct": -17.77,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 8.63,
+     "alpha": 3.8
+    },
+    "10": {
+     "raw": 7.55,
+     "alpha": 0.16
+    },
+    "20": {
+     "raw": 8.56,
+     "alpha": 2.21
+    }
+   }
+  },
+  {
+   "ticker": "MARUTI.NS",
+   "date": "2026-05-01",
+   "score": 0,
+   "label": "NEUTRAL",
+   "rsi": 50.7,
+   "mom_1m_pct": 8.19,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": -1,
+    "mom_1m": 1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": 3.09,
+     "alpha": 2.35
+    },
+    "10": {
+     "raw": -0.7,
+     "alpha": 0.78
+    },
+    "20": {
+     "raw": -2.76,
+     "alpha": -0.2
+    }
+   }
+  },
+  {
+   "ticker": "MARUTI.NS",
+   "date": "2026-06-01",
+   "score": -4,
+   "label": "BEARISH",
+   "rsi": 42.3,
+   "mom_1m_pct": -2.76,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.26,
+     "alpha": 0.85
+    },
+    "10": {
+     "raw": 6.64,
+     "alpha": 4.62
+    },
+    "20": {
+     "raw": 9.03,
+     "alpha": 6.96
+    }
+   }
+  },
+  {
+   "ticker": "MARUTI.NS",
+   "date": "2026-07-01",
+   "score": 3,
+   "label": "BULLISH",
+   "rsi": 67.5,
+   "mom_1m_pct": 10.54,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": 1,
+    "rsi_extreme": -1
+   },
+   "fwd": {
+    "5": {
+     "raw": -3.08,
+     "alpha": -2.57
+    },
+    "10": {
+     "raw": -5.64,
+     "alpha": -5.94
+    },
+    "20": {
+     "raw": -3.11,
+     "alpha": -4.12
+    }
+   }
+  },
+  {
+   "ticker": "MARUTI.NS",
+   "date": "2026-08-01",
+   "score": 2,
+   "label": "NEUTRAL",
+   "rsi": 61.7,
+   "mom_1m_pct": -0.79,
+   "parts": {
+    "px>sma20": 1,
+    "sma20>sma50": 1,
+    "sma50>sma200": -1,
+    "macd_hist": 1,
+    "macd_line": 1,
+    "mom_1m": -1,
+    "rsi_extreme": 0
+   },
+   "fwd": {
+    "5": {
+     "raw": -0.39,
+     "alpha": -1.16
+    },
+    "10": {
+     "raw": -1.83,
+     "alpha": -1.76
+    },
+    "20": {
+     "raw": -5.08,
+     "alpha": -4.23
+    }
+   }
+  },
+  {
+   "ticker": "MARUTI.NS",
+   "date": "2026-09-01",
+   "score": -5,
+   "label": "BEARISH",
+   "rsi": 31.5,
+   "mom_1m_pct": -7.56,
+   "parts": {
+    "px>sma20": -1,
+    "sma20>sma50": -1,
+    "sma50>sma200": -1,
+    "macd_hist": -1,
+    "macd_line": -1,
+    "mom_1m": -1,
+    "rsi_extreme": 1
+   },
+   "fwd": {
+    "5": {
+     "raw": -2.39,
+     "alpha": -0.64
+    },
+    "10": {
+     "raw": -6.05,
+     "alpha": -2.57
+    },
+    "20": null
+   }
+  }
+ ],
+ "summary": {
+  "BULLISH": {
+   "5": {
+    "n": 19,
+    "hit_rate": 52.6,
+    "mean_alpha": -0.15
+   },
+   "10": {
+    "n": 19,
+    "hit_rate": 57.9,
+    "mean_alpha": 0.89
+   },
+   "20": {
+    "n": 17,
+    "hit_rate": 58.8,
+    "mean_alpha": 0.35
+   }
+  },
+  "NEUTRAL": {
+   "5": {
+    "n": 37,
+    "hit_rate": 43.2,
+    "mean_alpha": -0.58
+   },
+   "10": {
+    "n": 37,
+    "hit_rate": 43.2,
+    "mean_alpha": -1.04
+   },
+   "20": {
+    "n": 30,
+    "hit_rate": 40.0,
+    "mean_alpha": -1.48
+   }
+  },
+  "BEARISH": {
+   "5": {
+    "n": 34,
+    "hit_rate": 41.2,
+    "mean_alpha": 0.64
+   },
+   "10": {
+    "n": 34,
+    "hit_rate": 50.0,
+    "mean_alpha": 0.53
+   },
+   "20": {
+    "n": 28,
+    "hit_rate": 39.3,
+    "mean_alpha": 1.44
+   }
+  }
+ }
+}

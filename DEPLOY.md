@@ -22,7 +22,7 @@ Ye Streamlit company ka **official free hosting** hai jo GitHub se direct connec
 1. Workspace se **`tradingagents-india.zip`** download karo (ye maine bana di hai)
 2. Zip ko apne computer par extract karo
 3. GitHub repo page par **"uploading an existing file"** link pe click karo
-4. Saari files/folders drag-drop kar do (**`app.py`, `run.py`, `requirements.txt`, `.env.example`, `.gitignore`, `README.md`, `DEPLOY.md`, `indiaagents/` folder**)
+4. Saari files/folders drag-drop kar do: **`app.py`, `run.py`, `requirements.txt`, `.gitignore`, `README.md`, `DEPLOY.md`, `indiaagents/` (⚠️ `indiaagents/models/` folder ZAROORI hai — `ml_score_v1.joblib` + `ml_calib_v1.json` — bina iske ML Quant Score card nahi dikhega), `scripts/`, `tests/`, docs**
 5. ⚠️ **`.env` file upload MAT karo** — usme tumhari API keys hain! (zip mein bhi nahi hai, don't worry)
 6. **Commit changes** dabao
 
@@ -34,21 +34,29 @@ Ye Streamlit company ka **official free hosting** hai jo GitHub se direct connec
    - **Repository:** `<tumhara-username>/tradingagents-india`
    - **Branch:** `main`
    - **Main file path:** `app.py`
+   - **Advanced settings → Python version:** `3.12` (recommended)
 5. **Secrets** section mein (ye tumhari keys ka safe jagah hai) ye paste karo:
 
 ```toml
 GOOGLE_API_KEYS = "key1,key2,key3,key4,key6,key7,key8"
 NVIDIA_API_KEY = "nvapi-..."
 MISTRAL_API_KEY = "mstrl_..."
-FRED_API_KEY = "..."
+GROQ_API_KEY = "gsk-..."
 OPENROUTER_API_KEY = "sk-or-..."
+FRED_API_KEY = "..."
 ```
 
-   (Gemini keys comma se separate — pool rotation automatic chalega. Values ko apni asli keys se replace karna!)
+   (Gemini keys comma se separate — pool rotation automatic chalega. Values ko apni asli keys se replace karna! **`GROQ_API_KEY` ab zaroori hai** — Groq gpt-oss-120b free provider hai.)
 
 6. **Deploy!** dabao
 7. 2-5 minute wait karo — app build hoga aur **tumhara personal URL** ready! 🎉
 8. Browser mein bookmark kar lo
+
+**Deploy ke BAAD verify karo (ye sab dikhna chahiye):**
+- Sidebar mein **⚡ Groq** badge (gpt-oss-120b) — GROQ_API_KEY kaam kar rahi hai
+- Report mein **🧠 ML Quant Score card** (0-100 + IC) — models/ folder sahi upload hua
+- Report mein **🛡️ Market Regime card** (HTML) / **Market Regime | Position band** row (MD) — regime engine live
+- Koi bhi stock run karke REGIME CLAMP/LOCK transparency note check karo (agar regime band se bahar position nikle)
 
 **Secrets baad mein change karna ho:** share.streamlit.io → tumhara app → ⚙️ Settings → Secrets → edit → Save (app auto-restart hoga)
 
@@ -112,3 +120,21 @@ Bilkul! Same code, same keys, dono jagah chalega.
    - Gemini: [aistudio.google.com/apikey](https://aistudio.google.com/apikey) → delete + nayi banao
    - NVIDIA/Mistral/OpenRouter: unke consoles se
 4. Gemini ki 7 working keys tumhare `.env` (sandbox) mein hain — wahi values Streamlit Secrets mein daalna
+
+## Optional: extra FREE providers (zyada capacity + battle diversity)
+
+In sab OPTIONAL hain — jiska key mile wo Secrets mein add kar do:
+
+| Provider | Kahan se key | Free limit |
+|---|---|---|
+| `GROQ_API_KEY` | console.groq.com | 14,400 req/day (llama-3.1-8b) |
+| `CEREBRAS_API_KEY` | cloud.cerebras.ai | 14,400 req/day + 1M tokens/day (gpt-oss-120b) |
+| `SAMBANOVA_API_KEY` | cloud.sambanova.ai | ~20 req/day (backup) |
+
+Streamlit Secrets mein bas ek line aur:
+```toml
+GROQ_API_KEY = "gsk_..."
+CEREBRAS_API_KEY = "csk-..."
+SAMBANOVA_API_KEY = "..."
+```
+App khud detect karke sidebar badge aur battle rotation mein shamil kar degi.

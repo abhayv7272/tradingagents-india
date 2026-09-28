@@ -366,6 +366,9 @@ class OpenAICompatProvider(BaseProvider):
                 if text:
                     return text
                 last_err = "empty response"
+                # reasoning models (gpt-oss etc.) kabhi-kabhi poora budget
+                # sochne (reasoning) mein laga dete hain — retry pe double karo
+                max_tokens = min(int(max_tokens) * 2, 8000)
             except Exception as e:
                 last_err = f"{type(e).__name__}: {str(e)[:200]}"
             _backoff(attempt)

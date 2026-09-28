@@ -1,0 +1,71 @@
+{
+ "stocks": [
+  "RELIANCE",
+  "TCS",
+  "HDFCBANK",
+  "INFY",
+  "ICICIBANK",
+  "SBIN",
+  "ITC",
+  "BHARTIARTL",
+  "LT",
+  "TATASTEEL",
+  "AXISBANK",
+  "KOTAKBANK",
+  "TITAN",
+  "SUNPHARMA",
+  "MARUTI",
+  "BAJFINANCE",
+  "HCLTECH",
+  "TECHM",
+  "WIPRO",
+  "ULTRACEMCO",
+  "NESTLEIND",
+  "HINDUNILVR",
+  "TATACONSUM",
+  "POWERGRID",
+  "NTPC",
+  "ONGC",
+  "COALINDIA",
+  "JSWSTEEL",
+  "HINDALCO",
+  "ADANIENT",
+  "ADANIPORTS",
+  "TRENT",
+  "DMART",
+  "SIEMENS",
+  "ABB",
+  "BEL",
+  "HAL",
+  "IRCTC",
+  "IRFC",
+  "LICI"
+ ],
+ "rows": 48630,
+ "factors": 27,
+ "train_until": "2025-03-24",
+ "results": [
+  {
+   "name": "QLIB-STYLE ML (Alpha158-lite + HistGB)",
+   "ic": 0.0254,
+   "icir": 0.159,
+   "ic_positive_rate": 0.56,
+   "days": 368
+  },
+  {
+   "name": "Current composite (7-part)",
+   "ic": -0.0003,
+   "icir": -0.001,
+   "ic_positive_rate": 0.489,
+   "days": 368
+  },
+  {
+   "name": "Baseline: 1-month momentum",
+   "ic": -0.034,
+   "icir": -0.145,
+   "ic_positive_rate": 0.443,
+   "days": 368
+  }
+ ],
+ "quintile_spread_10d_pct": 0.005
+}

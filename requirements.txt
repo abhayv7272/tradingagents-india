@@ -6,3 +6,5 @@ python-dotenv>=1.0
 streamlit>=1.35
 markdown>=3.5
 matplotlib>=3.8
+scikit-learn>=1.6,<2.0
+joblib>=1.3

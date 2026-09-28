@@ -18,7 +18,8 @@ class DecisionLog:
         self.dir.mkdir(parents=True, exist_ok=True)
         self.file = self.dir / "decision_log.jsonl"
 
-    def append(self, ticker: str, decision: dict, price: float | None) -> None:
+    def append(self, ticker: str, decision: dict, price: float | None,
+               lesson: str | None = None) -> None:
         entry = {
             "ts": datetime.now().isoformat(timespec="seconds"),
             "ticker": ticker,
@@ -27,6 +28,7 @@ class DecisionLog:
             "confidence": decision.get("confidence"),
             "price": price,
             "rationale": (decision.get("rationale") or "")[:400],
+            "lesson": (lesson or None),
         }
         with open(self.file, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -101,5 +103,7 @@ def memory_context_text(past: list[dict], close_hist) -> str:
                    f" | Result: stock {rr['stock_ret']}%"
         lines.append(f"- {p['ts'][:10]}: {p['decision']} ({p['rating']}, conf {p['confidence']}%) "
                      f"@ ₹{p['price']}{perf}")
+        if p.get("lesson"):
+            lines.append(f"  LESSON (reflection): {p['lesson']}")
     return ("PAST DECISIONS for this ticker (learn from these — were we right?):\n"
             + "\n".join(lines))

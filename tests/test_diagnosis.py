@@ -78,6 +78,265 @@ def config_role_assignments_complete():
             assert p in valid, f"{role} references unknown provider {p}"
 
 
+@test
+def config_optional_providers_registered():
+    from indiaagents.config import PROVIDERS, ROLE_ASSIGNMENTS
+    for p in ("groq", "cerebras", "sambanova"):
+        cfg = PROVIDERS.get(p)
+        assert cfg, f"{p} PROVIDERS mein nahi hai"
+        assert cfg.get("base_url", "").startswith("https://"), f"{p} bad base_url"
+        assert cfg.get("key_env"), f"{p} key_env khaali"
+        assert cfg.get("preference"), f"{p} model preference khaali"
+        assert cfg["rpm"] > 0 and cfg["min_interval"] > 0, f"{p} pacing invalid"
+    # har chain mein naye providers included hone chahiye (fallback ke liye)
+    for role, chain in ROLE_ASSIGNMENTS.items():
+        assert "groq" in chain or "cerebras" in chain, f"{role} mein naya provider nahi"
+
+
+@test
+def quant_factors_shape_order():
+    """Qlib-style factor engine: 27 factors, sahi order, no-nan."""
+    import numpy as np
+    import pandas as pd
+    from indiaagents.data.quant import compute_factors, FEATURE_COLS
+    rng = np.random.default_rng(7)
+    n = 600
+    df = pd.DataFrame({
+        "Open": 100 + rng.normal(0, 2, n).cumsum(),
+        "High": 0, "Low": 0, "Close": 100 + rng.normal(0, 2, n).cumsum(),
+        "Volume": rng.integers(1e6, 5e6, n).astype(float),
+    })
+    df["High"] = df[["Open", "Close"]].max(1) + 1
+    df["Low"] = df[["Open", "Close"]].min(1) - 1
+    f = compute_factors(df).dropna()
+    assert list(f.columns) == FEATURE_COLS, "feature order mismatch"
+    assert len(f) > 200 and not f.isna().any().any(), "NaN in factors"
+    assert np.isfinite(f.values).all(), "non-finite values"
+
+
+@test
+def quant_ml_score_bounds():
+    """ML score 0-100 range mein + model artifacts present."""
+    import pandas as pd
+    from indiaagents.data.quant import ml_score
+    import yfinance as yf
+    df = yf.download("RELIANCE.NS", period="2y", interval="1d",
+                     progress=False, auto_adjust=True)
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    ms = ml_score(df)
+    assert ms is not None, "model file missing — scripts/train_ml_model.py chalao"
+    assert 0 <= ms["score"] <= 100, f"score out of range: {ms['score']}"
+    assert -25 <= ms["exp_ret_10d_pct"] <= 25, "expected return unrealistic"
+    assert ms.get("val_ic") is not None and ms["val_ic"] > 0, "val IC missing/weak"
+
+
+@test
+def quant_block_renders():
+    import pandas as pd
+    from indiaagents.data.quant import quant_block
+    import yfinance as yf
+    df = yf.download("TCS.NS", period="2y", interval="1d",
+                     progress=False, auto_adjust=True)
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    b = quant_block(df)
+    assert "QUANT FACTOR SNAPSHOT" in b and "ML SCORE" in b
+    assert "ROC5" in b and "52w position" in b
+
+
+@test
+def static_pm_calibration_prompts():
+    """P0 improvements prompts mein hain."""
+    from indiaagents.agents.prompts import (PORTFOLIO_MANAGER, BULL_RESEARCHER,
+                                            BEAR_RESEARCHER, REFLECTION)
+    assert "BEARISH TECHNICALS" in PORTFOLIO_MANAGER and "QUANT ANCHOR" in PORTFOLIO_MANAGER
+    assert "Scenarios" in PORTFOLIO_MANAGER and "R:R" in PORTFOLIO_MANAGER
+    assert "CONVICTION CHECK" in BULL_RESEARCHER and "CONVICTION CHECK" in BEAR_RESEARCHER
+    assert "lesson" in REFLECTION.lower()
+
+
+@test
+def static_model_files_in_repo():
+    from indiaagents.data.quant import _MODEL_FILE, _CALIB_FILE
+    assert _MODEL_FILE.exists(), "ml_score_v1.joblib missing"
+    assert _CALIB_FILE.exists(), "ml_calib_v1.json missing"
+    import json
+    meta = json.loads(_CALIB_FILE.read_text())
+    assert len(meta["quantiles"]) >= 50 and meta["val_ic"] > 0
+
+
+@test
+def regime_engine_synthetic():
+    """TradeHive-style 7-regime engine: uptrend/downtrend/sideways pe sahi state."""
+    import numpy as np
+    import pandas as pd
+    from indiaagents.data.quant import regime_state, REGIME_BANDS
+
+    def mk(closes):
+        c = pd.Series(closes, dtype=float)
+        return pd.DataFrame({"Open": c.shift(1).fillna(c.iloc[0]), "Close": c,
+                             "High": c * 1.01, "Low": c * 0.99,
+                             "Volume": [1e6] * len(c)})
+
+    up = mk(np.linspace(100, 250, 320))              # steady uptrend
+    dn = mk(np.linspace(250, 100, 320))              # steady downtrend
+    flat = mk(100 + np.sin(np.linspace(0, 20, 320)) * 2)   # sideways
+    r_up, r_dn, r_fl = regime_state(up), regime_state(dn), regime_state(flat)
+    assert r_up["regime"] in ("confirmed_uptrend", "early_uptrend"), r_up
+    assert r_dn["regime"] in ("confirmed_downtrend", "early_downtrend", "bottoming"), r_dn
+    assert r_fl["regime"] in REGIME_BANDS
+    for rs in (r_up, r_dn, r_fl):
+        assert 0 <= rs["band_lo"] <= rs["band_hi"] <= 100
+        assert rs["bull_of6"] + rs["bear_of6"] == 6
+
+
+@test
+def regime_pm_clamp_integration():
+    """Mock run: PM decision mein regime fields + position band ke andar."""
+    import tempfile as _tf
+    from pathlib import Path as _P
+    import indiaagents.memory as _mem
+    _orig = _mem.DecisionLog
+    _mem.DecisionLog = lambda *a, **k: _orig(memory_dir=_P(_tf.mkdtemp()))
+    try:
+        from indiaagents.config import Settings
+        from indiaagents.pipeline import TradingAgentsIndiaPipeline
+        from indiaagents.data.quant import REGIME_BANDS
+        out = TradingAgentsIndiaPipeline(Settings(mock_llm=True)).run("ITC")
+        d = out["decision"]
+        assert d.get("regime") in REGIME_BANDS, "regime missing in decision"
+        lo, hi = REGIME_BANDS[d["regime"]][:2]
+        assert d["position_size_pct"] <= hi, (
+            f"clamp fail: pos {d['position_size_pct']} > band {hi} ({d['regime']})")
+    finally:
+        _mem.DecisionLog = _orig          # patch restore — warna baaki tests tootenge
+
+
+@test
+def static_tradehive_prompt_rules():
+    from indiaagents.agents.prompts import PORTFOLIO_MANAGER, BULL_RESEARCHER
+    assert "REGIME DISCIPLINE" in PORTFOLIO_MANAGER
+    assert "REASON FIRST" in PORTFOLIO_MANAGER
+    # JSON field order: rationale pehle, decision baad mein (KV cache engineering)
+    assert PORTFOLIO_MANAGER.index('"rationale"') < PORTFOLIO_MANAGER.index('"decision"')
+    assert "EVIDENCE STRUCTURE" in BULL_RESEARCHER
+    assert "REVERSAL SIGNALS" in BULL_RESEARCHER
+
+
+@test
+def static_tradehive_deep2_prompt_rules():
+    """Deep-dive 2: 4-type reversal taxonomy + anti-noise rules dono researchers mein,
+    PM engagement/survivability rules."""
+    from indiaagents.agents.prompts import (PORTFOLIO_MANAGER, BULL_RESEARCHER,
+                                            BEAR_RESEARCHER)
+    for p in (BULL_RESEARCHER, BEAR_RESEARCHER):
+        # 4 valid reversal-signal types (a)-(d)
+        for token in ("(a) Volume-price divergence", "(b) Extreme one-sided sentiment",
+                      "(c) Price desensitization", "ANTI-NOISE RULES",
+                      "SCORING SCALE (1-10)", "REGIME-RELATIVE BASELINE",
+                      "Reversal signals", "NOT FOUND"):
+            assert token in p, f"missing in {'BULL' if p is BULL_RESEARCHER else 'BEAR'}: {token}"
+    assert "(d) Decisive distribution day" in BULL_RESEARCHER       # topping mirror
+    assert "(d) Decisive capitulation day" in BEAR_RESEARCHER       # bottoming mirror
+    assert "RISK DEBATE ENGAGEMENT" in PORTFOLIO_MANAGER
+    assert "SURVIVABILITY" in PORTFOLIO_MANAGER
+    assert "REVERSAL-SIGNAL WEIGHT" in PORTFOLIO_MANAGER
+
+
+@test
+def position_structure_synthetic():
+    """TradeHive volume-profile position structure: accumulation/distribution read."""
+    import numpy as np
+    import pandas as pd
+    from indiaagents.data.quant import position_structure
+
+    def mk(closes, vols):
+        c = pd.Series(np.asarray(closes, dtype=float))
+        v = pd.Series(np.asarray(vols, dtype=float), index=c.index)
+        return pd.DataFrame({"Open": c.shift(1).fillna(c.iloc[0]), "Close": c,
+                             "High": c * 1.01, "Low": c * 0.99, "Volume": v})
+
+    # accumulation at lows → rally on thinning volume into new highs
+    up = mk(np.concatenate([np.linspace(100, 120, 160), np.linspace(120, 150, 160)]),
+            np.concatenate([np.full(160, 1e7), np.full(120, 4e6), np.full(40, 1e6)]))
+    ps = position_structure(up)
+    assert ps["pattern"] == "support_below", ps
+    assert ps["below_pct"] >= 65, ps
+    assert ps["flags"] == ["new_highs_thin_volume"], ps      # 20d vol << 60d vol at highs
+    # distribution at highs → decline (overhead supply)
+    dn = mk(np.concatenate([np.linspace(150, 130, 160), np.linspace(130, 100, 160)]),
+            np.concatenate([np.full(160, 1e7), np.full(160, 3e6)]))
+    ps2 = position_structure(dn)
+    assert ps2["pattern"] == "overhead_supply", ps2
+    assert ps2["above_pct"] >= 55, ps2
+    # graceful: short df → {}
+    assert position_structure(up.tail(20)) == {}
+
+
+@test
+def quant_block_structure_and_daily_table():
+    """quant_block mein POSITION STRUCTURE + RECENT DAILY PERFORMANCE + transitions."""
+    import numpy as np
+    import pandas as pd
+    from indiaagents.data.quant import quant_block
+
+    c = pd.Series(list(np.linspace(100, 105, 319)) + [105, 106, 101.0, 101.5, 100.9])
+    df = pd.DataFrame({"Open": c.shift(1).fillna(c.iloc[0]), "Close": c,
+                       "High": c * 1.01, "Low": c * 0.99, "Volume": [1e6] * len(c)})
+    qb = quant_block(df)
+    assert "POSITION STRUCTURE" in qb
+    assert "RECENT DAILY PERFORMANCE" in qb
+    assert "ABNORMAL" in qb                       # -4% day flagged (|chg| > 3%)
+    assert "transitions" in qb.lower()            # regime legal-transitions context
+    assert "overhead supply" in qb.lower() or "support_below" in qb.lower() \
+        or "balanced" in qb.lower()
+
+
+@test
+def regime_discipline_clamp_and_lock():
+    """_apply_regime_discipline: upper clamp + BUY-0% → HOLD lock (no upward force)."""
+    from indiaagents.pipeline import _apply_regime_discipline
+
+    d = _apply_regime_discipline(
+        {"decision": "BUY", "rating": "Buy", "position_size_pct": 3, "battle_notes": ""},
+        {"regime": "confirmed_downtrend", "band_lo": 0, "band_hi": 0})
+    assert d["decision"] == "HOLD" and d["position_size_pct"] == 0, d
+    assert d["rating"] == "Hold" and "REGIME LOCK" in d["battle_notes"], d
+    assert "REGIME CLAMP" in d["battle_notes"] and d["regime"] == "confirmed_downtrend"
+    assert d["regime_band"] == "0-0%"
+
+    d2 = _apply_regime_discipline(
+        {"decision": "BUY", "rating": "Buy", "position_size_pct": 80, "battle_notes": ""},
+        {"regime": "consolidation", "band_lo": 0, "band_hi": 15})
+    assert d2["decision"] == "BUY" and d2["position_size_pct"] == 15, d2
+    assert "REGIME CLAMP" in d2["battle_notes"] and "REGIME LOCK" not in d2["battle_notes"]
+
+    # koi upward force nahi — PM conservative rahe to allowed
+    d3 = _apply_regime_discipline(
+        {"decision": "BUY", "rating": "Buy", "position_size_pct": 5, "battle_notes": ""},
+        {"regime": "early_uptrend", "band_lo": 30, "band_hi": 60})
+    assert d3["decision"] == "BUY" and d3["position_size_pct"] == 5, d3
+
+    # SELL decision band se untouched (exit advisory)
+    d4 = _apply_regime_discipline(
+        {"decision": "SELL", "rating": "Reduce", "position_size_pct": 0, "battle_notes": ""},
+        {"regime": "confirmed_uptrend", "band_lo": 75, "band_hi": 100})
+    assert d4["decision"] == "SELL" and "REGIME LOCK" not in d4["battle_notes"], d4
+
+
+@test
+def key_risks_negation_filter():
+    """TradeHive filter_reversal_signals se: NOT FOUND/None/N/A placeholder entries drop."""
+    from indiaagents.pipeline import _parse_decision
+    raw = ('{"decision":"BUY","confidence":70,"rating":"Buy","rationale":"x",'
+           '"key_risks":["NOT FOUND","real risk: promoter pledge","None","N/A","-"],'
+           '"entry_zone":"a","target":"b","stop_loss":"c","position_size_pct":10,'
+           '"timeframe":"t","battle_notes":"n"}')
+    d = _parse_decision(raw)
+    assert d["key_risks"] == ["real risk: promoter pledge"], d["key_risks"]
+
+
 # ======================================================================
 # B. TICKER RESOLUTION
 # ======================================================================
@@ -973,6 +1232,273 @@ def static_requirements_complete():
     for pkg in ("yfinance", "pandas", "requests", "openai", "python-dotenv",
                 "streamlit", "markdown", "matplotlib"):
         assert pkg in reqs, f"{pkg} missing from requirements.txt"
+
+
+# ======================================================================
+# L. DEEP DIAGNOSIS — HARDENING (deep-dive 2 verification + bug-fix regression)
+# ======================================================================
+
+@test
+def quant_factors_point_in_time_no_leak():
+    """LOOKAHEAD-LEAK GUARD (sabse important correctness test):
+    row-i ke factors sirf rows <= i se bante hain. Truncated df ka row-299
+    full df ke row-299 se EXACT match hona chahiye — warna model leak ho raha hai."""
+    import numpy as np
+    import pandas as pd
+    from indiaagents.data.quant import compute_factors
+
+    rng = np.random.default_rng(42)
+    n = 600
+    close = 100 + rng.normal(0, 2, n).cumsum()
+    df = pd.DataFrame({
+        "Open": close + rng.normal(0, 0.5, n),
+        "High": close + np.abs(rng.normal(0, 1, n)) + 0.5,
+        "Low": close - np.abs(rng.normal(0, 1, n)) - 0.5,
+        "Close": close,
+        "Volume": rng.integers(1e6, 5e6, n).astype(float)})
+    full = compute_factors(df)
+    trunc = compute_factors(df.iloc[:300])
+    assert trunc.iloc[299].notna().all(), "row 299 truncated mein compute hona chahiye"
+    assert np.allclose(full.iloc[299].values, trunc.iloc[299].values), \
+        "LOOKAHEAD LEAK: row-299 factors aage ke data se influence ho rahe hain"
+
+
+@test
+def quant_ml_score_deterministic_synthetic():
+    """ML score deterministic hai (same input → same output) + tiny df graceful."""
+    import numpy as np
+    import pandas as pd
+    from indiaagents.data.quant import ml_score
+
+    rng = np.random.default_rng(3)
+    c = 100 + rng.normal(0, 2, 320).cumsum()
+    df = pd.DataFrame({"Open": c, "Close": c, "High": c * 1.01, "Low": c * 0.99,
+                       "Volume": rng.integers(1e6, 5e6, 320).astype(float)})
+    m1, m2 = ml_score(df), ml_score(df)
+    assert m1 is not None and m2 is not None, "model artifacts missing"
+    assert m1 == m2, f"NON-DETERMINISTIC: {m1} vs {m2}"
+    assert 0 <= m1["score"] <= 100
+    tiny = df.head(30)
+    assert ml_score(tiny) is None or isinstance(ml_score(tiny), dict)  # no crash
+
+
+@test
+def ml_calibration_quantiles_monotonic():
+    """searchsorted SORTED quantiles maangta hai — calib file monotonic verify karo."""
+    import json
+    import numpy as np
+    from indiaagents.data.quant import _CALIB_FILE
+
+    q = json.loads(_CALIB_FILE.read_text())["quantiles"]
+    assert len(q) >= 50, "calibration quantiles kam hain"
+    assert all(a <= b for a, b in zip(q, q[1:])), "quantiles sorted NAHI — percentile galat hoga!"
+
+
+@test
+def regime_flat_line_and_nan_guards():
+    """Deep-diagnosis fix regression: flat/suspended/NaN stock ko trend MAT banao.
+    (Pehle perfect-flat series confirmed_downtrend ban jati thi — 0% hard lock!)."""
+    import numpy as np
+    import pandas as pd
+    from indiaagents.data.quant import regime_state
+
+    def mk(closes):
+        c = pd.Series(np.asarray(closes, dtype=float))
+        return pd.DataFrame({"Open": c.shift(1).fillna(c.iloc[0]), "Close": c,
+                             "High": c * 1.01, "Low": c * 0.99,
+                             "Volume": [1e6] * len(c)})
+
+    flat = regime_state(mk([100.0] * 320))                     # suspended stock
+    assert flat["regime"] == "consolidation", flat
+    assert flat["band_lo"] == 0 and flat["band_hi"] == 15
+    near_flat = regime_state(mk(100 + np.sin(np.linspace(0, 20, 320)) * 0.01))
+    assert near_flat["regime"] == "consolidation", near_flat  # zero-info
+    short = regime_state(mk(np.linspace(100, 200, 150)))      # insufficient history
+    assert short["regime"] == "consolidation" and short["band_hi"] == 15
+    nan_c = list(np.linspace(100, 200, 320))
+    nan_c[100] = float("nan")                                 # broken data
+    nan_regime = regime_state(mk(nan_c))
+    assert nan_regime["regime"] == "consolidation", nan_regime
+
+
+@test
+def regime_transitions_map_complete():
+    """LEGAL_TRANSITIONS har regime cover kare + targets valid hon."""
+    from indiaagents.data.quant import LEGAL_TRANSITIONS, REGIME_BANDS
+
+    assert set(LEGAL_TRANSITIONS) == set(REGIME_BANDS), "transitions map incomplete"
+    for src, targets in LEGAL_TRANSITIONS.items():
+        assert targets, f"{src} ka koi transition nahi"
+        for t in targets:
+            assert t == "(stay)" or t in REGIME_BANDS, f"invalid transition {src} → {t}"
+
+
+@test
+def position_structure_edge_cases():
+    """Volume-profile structure: broken inputs par graceful {} / no-crash."""
+    import numpy as np
+    import pandas as pd
+    from indiaagents.data.quant import position_structure
+
+    def mk(closes, vols):
+        c = pd.Series(np.asarray(closes, dtype=float))
+        v = pd.Series(np.asarray(vols, dtype=float), index=c.index)
+        return pd.DataFrame({"Open": c, "Close": c, "High": c * 1.01, "Low": c * 0.99,
+                             "Volume": v})
+
+    big = list(np.linspace(100, 150, 200))
+    assert position_structure(mk(big, [1e6] * 200).tail(20)) == {}      # too short
+    assert position_structure(mk([100.0] * 200, [1e6] * 200)) == {}     # constant price
+    assert position_structure(mk(big, [0.0] * 200)) == {}               # zero volume
+    no_vol = mk(big, [1e6] * 200).drop(columns=["Volume"])
+    assert position_structure(no_vol) == {}                             # column missing
+    mixed = mk(big, [np.nan if i % 7 == 0 else 1e6 for i in range(200)])
+    ps = position_structure(mixed)                                      # NaN volume mix
+    assert ps == {} or ps["pattern"] in ("overhead_supply", "support_below", "balanced")
+
+
+@test
+def recent_daily_lines_edges():
+    """±3% ABNORMAL flag exact boundary par sahi ho; broken index no-crash."""
+    import numpy as np
+    import pandas as pd
+    from indiaagents.data.quant import recent_daily_lines
+
+    def mk(closes):
+        c = pd.Series(np.asarray(closes, dtype=float))
+        return pd.DataFrame({"Open": c, "Close": c, "High": c * 1.01, "Low": c * 0.99,
+                             "Volume": [1e6] * len(c)})
+
+    # last 5 days: +2.9% (NO flag), +4.2% (flag), -2.0%, +0.5%, -1.0%
+    closes = list(np.linspace(100, 120, 60))
+    closes += [123.48, 128.67, 126.10, 126.73, 125.46]
+    lines = recent_daily_lines(mk(closes))
+    assert len([x for x in lines if x.startswith("|")]) == 6     # header + 5 rows
+    abnormal = [x for x in lines if "ABNORMAL" in x]
+    assert len(abnormal) == 1 and "+4.2%" in abnormal[0], lines
+    assert "+2.9%" in "\n".join(lines) and "ABNORMAL" not in [
+        x for x in lines if "+2.9%" in x][0]
+    assert recent_daily_lines(mk([100.0])) == []                 # 1-row df
+
+
+@test
+def regime_discipline_full_matrix():
+    """Clamp/lock matrix: HOLD/SELL/string-pos/None-pos/rating-variants."""
+    from indiaagents.pipeline import _apply_regime_discipline as D
+
+    # HOLD + over-band position → clamp note, NO lock (lock sirf BUY ke liye)
+    d = D({"decision": "HOLD", "rating": "Hold", "position_size_pct": 40,
+           "battle_notes": ""}, {"regime": "consolidation", "band_lo": 0, "band_hi": 15})
+    assert d["decision"] == "HOLD" and d["position_size_pct"] == 15, d
+    assert "REGIME CLAMP" in d["battle_notes"] and "REGIME LOCK" not in d["battle_notes"]
+    # SELL ka position field advisory-moot hai — par clamp discipline phir bhi lagegi
+    d2 = D({"decision": "SELL", "rating": "Reduce", "position_size_pct": 60,
+            "battle_notes": ""}, {"regime": "consolidation", "band_lo": 0, "band_hi": 15})
+    assert d2["decision"] == "SELL" and d2["position_size_pct"] == 15, d2
+    assert "REGIME LOCK" not in d2["battle_notes"]
+    # string position "40%" → 40 (deep-diagnosis hardening)
+    d3 = D({"decision": "BUY", "rating": "Buy", "position_size_pct": "40%",
+            "battle_notes": ""}, {"regime": "early_uptrend", "band_lo": 30, "band_hi": 60})
+    assert d3["decision"] == "BUY" and d3["position_size_pct"] == 40, d3
+    # None position + BUY → lock
+    d4 = D({"decision": "BUY", "rating": "STRONG BUY", "position_size_pct": None,
+            "battle_notes": ""}, {"regime": "confirmed_downtrend", "band_lo": 0, "band_hi": 0})
+    assert d4["decision"] == "HOLD" and d4["position_size_pct"] == 0, d4
+    assert d4["rating"] == "Hold" and "REGIME LOCK" in d4["battle_notes"]
+    # band ke andar → untouched
+    d5 = D({"decision": "BUY", "rating": "Buy", "position_size_pct": 20,
+            "battle_notes": ""}, {"regime": "bottoming", "band_lo": 5, "band_hi": 20})
+    assert d5["decision"] == "BUY" and d5["position_size_pct"] == 20
+    assert "REGIME" not in d5["battle_notes"]
+
+
+@test
+def key_risks_negation_precision():
+    """Deep-diagnosis fix regression: legit risk 'Q2 guidance not met' KO drop
+    NAHI karna — sirf true placeholders drop hon."""
+    from indiaagents.pipeline import _parse_decision
+
+    raw = ('{"decision":"BUY","confidence":70,"rating":"Buy","rationale":"x",'
+           '"key_risks":["Q2 guidance not met — downgrade risk","NOT FOUND","None",'
+           '"N/A","no specific risks","insider activity not detected as material"],'
+           '"entry_zone":"a","target":"b","stop_loss":"c","position_size_pct":10,'
+           '"timeframe":"t","battle_notes":"n"}')
+    d = _parse_decision(raw)
+    assert "Q2 guidance not met — downgrade risk" in d["key_risks"], d["key_risks"]
+    assert "insider activity not detected as material" in d["key_risks"], d["key_risks"]
+    for gone in ("NOT FOUND", "None", "N/A", "—", "no specific risks"):
+        assert gone not in d["key_risks"], f"placeholder bacha: {gone}"
+
+
+@test
+def pm_parse_error_retry_and_prompt_wiring():
+    """END-TO-END: (1) PM garbage output → retry prompt mein PARSE ERROR feedback
+    mile aur run survive kare (TradeHive two-layer safeguard). (2) Naye injections
+    LIVE wiring mein pahunchen: PM mein regime+transitions, risk team mein regime
+    context, debate mein quant snapshot (dates), trader mein regime line."""
+    import pathlib
+    import tempfile as _tf
+    import indiaagents.llm as _llm
+    import indiaagents.memory as _mem
+    from indiaagents.config import Settings
+    from indiaagents.pipeline import TradingAgentsIndiaPipeline
+
+    _orig_log, _orig_chat = _mem.DecisionLog, _llm.MockProvider.chat
+    _mem.DecisionLog = lambda *a, **k: _orig_log(memory_dir=pathlib.Path(_tf.mkdtemp()))
+    captured, state = [], {"pm_fail": 1}
+
+    def wrapped_chat(self, system, user, temperature, max_tokens):
+        captured.append({"system": system, "user": user})
+        if "portfolio manager" in system.lower() and state["pm_fail"] > 0:
+            state["pm_fail"] -= 1
+            return "MAIN JSON NAHI DUNGA — sirf garbage text, braces hi nahi"
+        return _orig_chat(self, system, user, temperature, max_tokens)
+
+    _llm.MockProvider.chat = wrapped_chat
+    try:
+        out = TradingAgentsIndiaPipeline(Settings(mock_llm=True)).run("ITC")
+        d = out["decision"]
+        # 1) retry ne bacha liya — fallback HOLD (confidence 0) NAHI, parsed decision hai
+        assert d["decision"] in ("BUY", "SELL", "HOLD") and d["confidence"] > 0, d
+        assert "regime" in d and "regime_band" in d
+        # 2) retry prompt mein validation feedback gaya
+        pm_users = [c["user"] for c in captured if "hard discipline layer" in c["user"]]
+        assert len(pm_users) == 2, f"PM {len(pm_users)}x call hua, 2 (retry) expect tha"
+        assert "PARSE ERROR" in pm_users[1], "retry prompt mein feedback nahi gaya"
+        # 3) PM ko legal transitions mile
+        assert any("Realistic next transitions" in u for u in pm_users)
+        # 4) risk team (3 logs) ko regime context mila
+        risk_users = [c["user"] for c in captured
+                      if "TRADER PLAN" in c["user"] and "MARKET REGIME" in c["user"]]
+        assert len(risk_users) >= 3, f"risk regime ctx sirf {len(risk_users)} ko mila"
+        # 5) bull/bear debate ko quant snapshot (dates/volume) mila
+        debate_users = [c["user"] for c in captured
+                        if "DEBATE SO FAR" in c["user"] and "QUANT SNAPSHOT" in c["user"]]
+        assert debate_users, "debate ko quant snapshot nahi mila"
+        # 6) trader ko regime line mili
+        trader_users = [c["user"] for c in captured
+                        if "=== FINAL RESEARCH VERDICT ===" in c["user"]]
+        assert trader_users and "MARKET REGIME" in trader_users[0]
+    finally:
+        _llm.MockProvider.chat = _orig_chat
+        _mem.DecisionLog = _orig_log          # restore — baaki tests ispe depend karte hain
+
+
+@test
+def report_regime_rows_and_lock_notes():
+    """Report MD+HTML dono mein: regime row, band, REGIME CLAMP/LOCK transparency."""
+    from indiaagents.report import build_html, build_markdown
+
+    r = _fake_result()
+    r["decision"] = {**r["decision"], "regime": "confirmed_downtrend",
+                     "regime_band": "0-0%",
+                     "battle_notes": ("⚠️ REGIME CLAMP: PM ne 3% bola → 0% "
+                                      "| 🚫 REGIME LOCK: BUY → HOLD")}
+    md, h = build_markdown(r), build_html(r)
+    for doc in (md, h):
+        assert "Market Regime" in doc, "regime row missing"
+        assert "0-0%" in doc, "band missing"
+        assert "REGIME CLAMP" in doc and "REGIME LOCK" in doc, "transparency note missing"
 
 
 # ======================================================================

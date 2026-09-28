@@ -58,6 +58,10 @@ CSS = """
     .b-nvidia{background:rgba(34,197,94,.15);color:#86efac;border:1px solid #22c55e66}
     .b-mistral{background:rgba(249,115,22,.15);color:#fdba74;border:1px solid #f9731666}
     .b-openrouter{background:rgba(168,85,247,.15);color:#d8b4fe;border:1px solid #a855f766}
+    .b-groq{background:rgba(249,115,22,.15);color:#fdba74;border:1px solid #f9731666}
+    .b-cerebras{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid #ef444466}
+    .b-github{background:rgba(148,163,184,.15);color:#e2e8f0;border:1px solid #94a3b866}
+    .b-sambanova{background:rgba(20,184,166,.15);color:#5eead4;border:1px solid #14b8a666}
     .b-mock{background:rgba(100,116,139,.15);color:#cbd5e1;border:1px solid #64748b66}
     .b-dead{background:rgba(100,116,139,.08);color:#94a3b8;border:1px dashed #64748b55}
     .prog{font-family:ui-monospace,Consolas,monospace;font-size:.82rem;line-height:1.75;
@@ -73,6 +77,9 @@ PROVIDER_BADGE = {
     "nvidia": ("b-nvidia", "NVIDIA Nemotron"),
     "mistral": ("b-mistral", "Mistral"),
     "openrouter": ("b-openrouter", "OpenRouter"),
+    "groq": ("b-groq", "Groq GPT-OSS"),
+    "cerebras": ("b-cerebras", "Cerebras GPT-OSS"),
+    "sambanova": ("b-sambanova", "SambaNova"),
     "mock": ("b-mock", "DEMO"),
 }
 

@@ -64,11 +64,13 @@ def _md(text: str) -> str:
     import re as _re
     t = str(text or "")
     # escape '<' only when it starts an HTML-looking tag (keeps math like "5 < 10" intact)
-    t = _re.sub(r"<(?=[a-zA-Z/!])", "&lt;", t)
+    escaped = _re.sub(r"<(?=[a-zA-Z/!])", "&lt;", t)
     try:
         import markdown as _m
-        return _m.markdown(t, extensions=["tables", "fenced_code", "sane_lists"])
+        return _m.markdown(escaped, extensions=["tables", "fenced_code", "sane_lists"])
     except ImportError:
+        # markdown lib na ho to original text pe ek hi baar escape karo
+        # (escaped text pe dobara escape karne se &amp;lt; double-escape ho jata)
         return f"<pre style='white-space:pre-wrap'>{_html.escape(t)}</pre>"
 
 
@@ -99,6 +101,12 @@ def build_markdown(r: dict) -> str:
         for p, d in stats.items()
     ) or "| — | — | — | — |"
 
+    _reg = (r.get('decision') or {}).get('regime')
+    _regband = (r.get('decision') or {}).get('regime_band')
+    _q = r.get("quant") or {}
+    qline = (f"**{_q['score']:.0f}/100** (expected 10-day move {_q.get('exp_ret_10d_pct', 0):+.2f}%, "
+             f"model val IC {_q.get('val_ic', '—')})" if _q.get("score") is not None else "—")
+    _nr = r.get("next_results")
     md = f"""# 📊 {r['name']} ({r['ticker']}) — AI Trading Desk Research Report
 
 *Generated: {datetime.now(IST).strftime('%d %b %Y, %H:%M')} IST · Analysis date: {r['trade_date']} · {r['exchange']}*
@@ -116,6 +124,8 @@ def build_markdown(r: dict) -> str:
 | **Price** | ₹{price:,.2f} | **Entry** | {dec.get('entry_zone', '—')} |
 | **Target** | {dec.get('target', '—')} | **Stop loss** | {dec.get('stop_loss', '—')} |
 | **Position size** | {dec.get('position_size_pct', 0)}% capital | **Timeframe** | {dec.get('timeframe', '—')} |
+| **ML Quant Score** | {qline} | **Next results** | {_nr or '—'} |
+| **Market Regime** | {_reg or '—'} | **Position band** | {_regband or '—'} |
 
 **Rationale:** {dec.get('rationale', '—')}
 
@@ -140,6 +150,7 @@ def build_markdown(r: dict) -> str:
 - **Market Cap:** {indian_units(snap.get('market_cap'))}
 - **P/E:** {rnd(snap.get('pe'))} · **P/B:** {rnd(snap.get('pb'))} · **Beta:** {rnd(snap.get('beta'))}
 - **Price:** ₹{price:,.2f} (52w-high se {snap.get('from_52w_high')}% neeche, 52w-low se {snap.get('from_52w_low')}% upar)
+- **ML Quant Score:** {qline}
 - **RSI(14):** {snap.get('rsi')} · **1M:** {snap.get('ret_1m')}% · **1Y:** {snap.get('ret_1y')}%
 
 {r['market_context_block']}
@@ -355,6 +366,17 @@ def build_html(r: dict) -> str:
     vclass = {"BUY": "v-buy", "SELL": "v-sell", "HOLD": "v-hold"}.get(d, "v-hold")
     vicon = {"BUY": "🟢", "SELL": "🔴", "HOLD": "🟡"}.get(d, "⚪")
     conf = int(dec.get("confidence", 0) or 0)
+    _reg = (r.get("decision") or {}).get("regime")
+    _regband = (r.get("decision") or {}).get("regime_band")
+    _q = r.get("quant") or {}
+    if _q.get("score") is not None:
+        _qs = float(_q["score"])
+        _qcol = "pos" if _qs >= 60 else "neg" if _qs < 40 else ""
+        quant_kpi = (f"<div class='kpi'><div class='l'>ML Quant Score</div>"
+                     f"<div class='v {_qcol}'>{_qs:.0f}/100</div>"
+                     f"<div class='s'>exp 10d {_q.get('exp_ret_10d_pct', 0):+.2f}% · IC {_q.get('val_ic', '—')}</div></div>")
+    else:
+        quant_kpi = ""
 
     def cls(v):
         try:
@@ -372,6 +394,9 @@ def build_html(r: dict) -> str:
         <div class='s'>Beta {rnd(snap.get('beta'))}</div></div>
       <div class='kpi'><div class='l'>RSI (14)</div><div class='v'>{rnd(snap.get('rsi'), 1)}</div>
         <div class='s'>{'Overbought' if (snap.get('rsi') or 50) > 70 else 'Oversold' if (snap.get('rsi') or 50) < 30 else 'Neutral'}</div></div>
+      {quant_kpi}
+      <div class='kpi'><div class='l'>Market Regime</div><div class='v'>{_esc((_reg or '—').replace('_', ' '))}</div>
+        <div class='s'>position band {_esc(_regband or '—')} · hard discipline</div></div>
       <div class='kpi'><div class='l'>1M Return</div><div class='v {cls(snap.get('ret_1m'))}'>{rnd(snap.get('ret_1m'), 1)}%</div>
         <div class='s'>1Y: <span class='{cls(snap.get('ret_1y'))}'>{rnd(snap.get('ret_1y'), 1)}%</span></div></div>
       <div class='kpi'><div class='l'>From 52W High</div><div class='v {cls(snap.get('from_52w_high'))}'>{rnd(snap.get('from_52w_high'), 1)}%</div>

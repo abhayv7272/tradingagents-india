@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import yfinance as yf
 import re
 import threading
 from datetime import datetime
@@ -40,6 +41,18 @@ from .report import build_report
 
 
 logger = logging.getLogger(__name__)
+
+# TradeHive schemas.filter_reversal_signals se adapted — LLM kabhi-kabhi list mein
+# "NOT FOUND" / "None" / "N/A" type placeholder entries likh deta hai; drop karo.
+# DO-tier design (deep-diagnosis fix): SUBSTRING sirf un phrases par jo kabhi real
+# risk-text nahi ban sakte; "not met"/"not detected" jaisi phrases legit risk
+# ("Q2 guidance not met") ka hissa ho sakti hain — wo sirf FULL-match mein drop hongi.
+_NEG_ENTRY_SUB_RE = re.compile(
+    r"not found|not present|not applicable|does not apply|"
+    r"no specific risk|no major risk|not available", re.IGNORECASE)
+_NEG_ENTRY_FULL_RE = re.compile(
+    r"^(n/?a|none|nil|no risks?|no key risks?|nothing|not applicable|not met|"
+    r"not detected|no signal|[-\u2014\u2013]+|[?.!]+)$", re.IGNORECASE)
 
 
 class Progress:
@@ -90,6 +103,7 @@ class TradingAgentsIndiaPipeline:
         # 2) data -----------------------------------------------------------
         P("data", "Price, indicators, fundamentals, news, social, macro fetch ho raha hai...")
         from .data.macro import get_fred_global_macro
+        from .data import quant as _quant
         mkt = get_market_data(ticker, trade_date, s.lookback_months)
         fund = get_fundamentals_data(ticker, trade_date)
         news = get_company_news(name, ticker, s.news_article_limit, trade_date)
@@ -97,6 +111,26 @@ class TradingAgentsIndiaPipeline:
         social = get_social_chatter(name, ticker, trade_date)
         mctx = get_market_context()
         fred = get_fred_global_macro()
+        # Qlib-style quant evidence (deterministic) + earnings date
+        try:
+            qblock = _quant.quant_block(mkt["df"])
+            qinfo = _quant.ml_score(mkt["df"])
+        except Exception as e:
+            logger.warning("quant engine skip: %s", e)
+            qblock, qinfo = "", None
+        try:
+            regime = _quant.regime_state(mkt["df"])
+        except Exception as e:
+            logger.warning("regime skip: %s", e)
+            regime = {"regime": "consolidation", "band_lo": 0, "band_hi": 15,
+                      "intent": "regime engine unavailable"}
+        next_result = None
+        try:
+            cal = yf.Ticker(ticker).calendar
+            ev = (cal.get("Earnings Date") or []) if isinstance(cal, dict) else []
+            next_result = str(ev[0])[:10] if ev else None
+        except Exception:
+            next_result = None
         P("data", f"✅ Data ready: price ₹{mkt['price']:,.2f} ({mkt['snapshot']['date']}), "
                   f"{len(news['items'])} news, {social['count']} social posts", "ok")
 
@@ -105,6 +139,7 @@ class TradingAgentsIndiaPipeline:
             f"COMPANY: {name} | Ticker: {ticker} ({inst['exchange']}) | "
             f"Sector: {mkt['snapshot'].get('sector') or '?'} | "
             f"Analysis date: {trade_date} | Current price: ₹{price:,.2f}"
+            + (f" | Next results: ~{next_result}" if next_result else "")
         )
 
         # memory ------------------------------------------------------------
@@ -115,7 +150,9 @@ class TradingAgentsIndiaPipeline:
         analysts = {}
         if "market" in s.selected_analysts:
             analysts["market"] = (MARKET_ANALYST, company_block + "\n\n" +
-                                  mkt["indicator_block"] + "\n\n" + mctx["market_context_block"])
+                                  mkt["indicator_block"] +
+                                  (f"\n\n{qblock}" if qblock else "") +
+                                  "\n\n" + mctx["market_context_block"])
         if "fundamentals" in s.selected_analysts:
             analysts["fundamentals"] = (FUNDAMENTALS_ANALYST, company_block + "\n\n" +
                                         fund["fundamentals_block"])
@@ -154,7 +191,10 @@ class TradingAgentsIndiaPipeline:
                 ("Bear", "bear_researcher", BEAR_RESEARCHER),
             ):
                 opponent = bear_arg if side == "Bull" else bull_arg
-                user = (f"{company_block}\n\n{analyst_evidence}\n\n"
+                user = (f"{company_block}\n\n"
+                        + (f"=== QUANT SNAPSHOT (deterministic — reversal-signal dates/"
+                           f"volume is data se cite karo) ===\n{qblock}\n\n" if qblock else "")
+                        + f"{analyst_evidence}\n\n"
                         f"DEBATE SO FAR:\n{debate_history or '(opening round)'}\n\n"
                         f"{'Last BEAR argument to rebut:' if side == 'Bull' else 'Last BULL argument to rebut:'}\n"
                         f"{opponent or '(opening statement — no opponent argument yet)'}\n\n"
@@ -228,23 +268,35 @@ class TradingAgentsIndiaPipeline:
         try:
             trader_plan, prov = self.engine.call(
                 "trader", TRADER + self.lang,
-                f"{company_block}\n\n=== FINAL RESEARCH VERDICT ===\n{final_research}\n\n"
+                f"{company_block}\n\n"
+                f"MARKET REGIME (deterministic): {regime['regime']} | allowed position "
+                f"band: {regime['band_lo']}-{regime['band_hi']}% — plan is regime se "
+                f"aligned hona chahiye.\n\n"
+                f"=== FINAL RESEARCH VERDICT ===\n{final_research}\n\n"
                 f"=== KEY PRICE DATA ===\n{mkt['indicator_block'][:1500]}\n\n"
-                f"{past_ctx}")
+                + (f"=== QUANT SNAPSHOT ===\n{qblock}\n\n" if qblock else "")
+                + f"{past_ctx}")
             P("trader", f"✅ Trader ({prov}) plan ready", "ok")
         except ProviderError as e:
             P("trader", f"❌ Trader fail: {str(e)[:80]}", "error")
 
         # 8) risk team (3-way, parallel) ----------------------------------------
         P("risk", "Risk team (Aggressive / Conservative / Neutral) debate kar rahi hai...")
+        _regime_ctx = (f"MARKET REGIME (deterministic): {regime['regime']} | allowed "
+                       f"position/sizing band: {regime['band_lo']}-{regime['band_hi']}% | "
+                       f"realistic transitions: "
+                       f"{', '.join(_quant.LEGAL_TRANSITIONS.get(regime['regime'], []))}"
+                       "\n(Debate mein aggressive bhi is band ke against sizing propose "
+                       "nahi kar sakta — regime hard constraint hai.)\n\n")
         risk_jobs = [
             {"role": "aggressive_analyst", "system": AGGRESSIVE_ANALYST + self.lang,
-             "user": f"{company_block}\n\nTRADER PLAN:\n{trader_plan or '<unavailable>'}"},
+             "user": f"{company_block}\n\n{_regime_ctx}TRADER PLAN:\n{trader_plan or '<unavailable>'}"},
             {"role": "conservative_analyst", "system": CONSERVATIVE_ANALYST + self.lang,
-             "user": f"{company_block}\n\n{mkt['indicator_block'][:2000]}\n\n"
-                     f"TRADER PLAN:\n{trader_plan or '<unavailable>'}"},
+             "user": f"{company_block}\n\n{_regime_ctx}{mkt['indicator_block'][:2000]}\n\n"
+                     + (f"=== QUANT SNAPSHOT ===\n{qblock}\n\n" if qblock else "")
+                     + f"TRADER PLAN:\n{trader_plan or '<unavailable>'}"},
             {"role": "neutral_analyst", "system": NEUTRAL_ANALYST + self.lang,
-             "user": f"{company_block}\n\nTRADER PLAN:\n{trader_plan or '<unavailable>'}"},
+             "user": f"{company_block}\n\n{_regime_ctx}TRADER PLAN:\n{trader_plan or '<unavailable>'}"},
         ]
         risk_results = self.engine.call_parallel(risk_jobs)
         risk_views = []
@@ -263,7 +315,15 @@ class TradingAgentsIndiaPipeline:
         pm_user = (f"{company_block}\n\n=== FINAL RESEARCH VERDICT (post-battle) ===\n"
                    f"{final_research}\n\n=== TRADER PLAN ===\n{trader_plan}\n\n"
                    f"=== RISK TEAM VIEWS ===\n{risk_block}\n\n{past_ctx}\n\n"
-                   f"=== PRICE SNAPSHOT ===\nCurrent: ₹{price:,.2f} | "
+                   + (f"=== QUANT SNAPSHOT (deterministic anchor) ===\n{qblock}\n\n" if qblock else "")
+                   + (f"=== MARKET REGIME (hard discipline layer) ===\n"
+                      f"Regime: {regime['regime']} | Allowed position band: "
+                      f"{regime['band_lo']}-{regime['band_hi']}% | {regime['intent']}\n"
+                      f"(Bull-conditions: {regime.get('bull_of6', '?')}/6 | "
+                      f"Bear-conditions: {regime.get('bear_of6', '?')}/6 — 5/6 = confirmed)\n"
+                      f"Realistic next transitions: "
+                      f"{', '.join(_quant.LEGAL_TRANSITIONS.get(regime['regime'], []))}\n\n")
+                   + f"=== PRICE SNAPSHOT ===\nCurrent: ₹{price:,.2f} | "
                    f"RSI: {mkt['snapshot']['rsi']} | 1M return: {mkt['snapshot']['ret_1m']}% | "
                    f"52w-high se {mkt['snapshot']['from_52w_high']}% neeche")
         for attempt in range(2):
@@ -280,7 +340,25 @@ class TradingAgentsIndiaPipeline:
             except Exception as e:  # parse issues etc — retry once, never kill the run
                 P("final", f"⚠️ PM output parse issue, retry... ({type(e).__name__}: {e})",
                   "warn")
-                pm_user += "\n\n(REMINDER: ONLY output the JSON object, nothing else.)"
+                pm_user += (f"\n\n(PARSE ERROR: {str(e)[:150]} — "
+                            "ONLY output the valid JSON object, nothing else.")
+
+        # --- TradeHive-style regime discipline (hard backstop) --------------
+        if decision is not None:
+            _pre_pos = decision.get("position_size_pct")
+            decision = _apply_regime_discipline(decision, regime)
+            _bn = decision.get("battle_notes") or ""
+            if "REGIME CLAMP" in _bn:
+                P("final", f"⚠️ Regime clamp: position {_pre_pos}% → "
+                           f"{decision['position_size_pct']}% ({regime['regime']})", "warn")
+            if "REGIME LOCK" in _bn:
+                P("final", f"🚫 Regime lock: BUY → HOLD ({regime['regime']} band "
+                           f"{regime['band_lo']}-{regime['band_hi']}%)", "warn")
+            elif (decision["decision"] == "BUY"
+                  and int(decision.get("position_size_pct") or 0) < regime["band_lo"]
+                  and regime["band_hi"] > 0):
+                P("final", f"ℹ️ PM conservative: {decision['position_size_pct']}% vs "
+                           f"regime band {regime['band_lo']}-{regime['band_hi']}%", "info")
 
         if decision is None:
             decision = {"decision": "HOLD", "confidence": 0, "rating": "Hold",
@@ -301,6 +379,7 @@ class TradingAgentsIndiaPipeline:
             "battle_critiques": battle_section, "final_research": final_research,
             "trader_plan": trader_plan, "risk_views": risk_block,
             "decision": decision, "memory": past_ctx,
+            "quant": qinfo, "next_results": next_result,
             "news_block": news["news_block"], "macro_news_block": macro_news["macro_news_block"],
             "social_block": social["social_block"],
             "indicator_block": mkt["indicator_block"],
@@ -323,7 +402,22 @@ class TradingAgentsIndiaPipeline:
             result["chart_png"] = None
 
         paths = build_report(result)
-        self.decision_log.append(ticker, decision, price)
+        # reflection lesson (learning loop — original TradingAgents se inspired)
+        lesson = None
+        if past and not s.mock_llm:
+            try:
+                from .agents.prompts import REFLECTION
+                lesson, _lp = self.engine.call(
+                    "reflection", REFLECTION + self.lang,
+                    f"PAST DECISIONS:\n{past_ctx}\n\nCURRENT DECISION (just made):\n"
+                    f"{decision['decision']}/{decision['rating']} conf={decision['confidence']}% "
+                    f"@ ₹{price:,.2f}\nRationale: {(decision.get('rationale') or '')[:400]}\n\n"
+                    f"2-3 line ka imandaar Hinglish lesson likho.", temperature=0.2)
+                lesson = lesson.strip()[:500]
+                P("report", "🧠 Reflection lesson saved (agli report mein use hoga)", "ok")
+            except Exception as e:
+                logger.warning("reflection skip: %s", e)
+        self.decision_log.append(ticker, decision, price, lesson)
         P("report", f"✅ Report save ho gayi: {paths['md']}", "ok")
         result["paths"] = paths
         return result
@@ -333,6 +427,40 @@ def _condense(text: str, max_chars: int) -> str:
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + "\n...(truncated for length)..."
+
+
+# --- TradeHive-style regime discipline (hard backstop) ----------------------
+def _apply_regime_discipline(decision: dict, regime: dict) -> dict:
+    """Position band clamp + decision-label consistency (TradeHive Trader/PM
+    code-layer fallback se adapted). Upper-side hard clamp; BUY jiske liye koi
+    allowed position hi nahi bacha use HOLD/WAIT lock kar do (BUY-0% inconsistent
+    output hai — user ko lagega "kharido par 0%")."""
+    _lo, _hi = regime["band_lo"], regime["band_hi"]
+    _pos = decision.get("position_size_pct")
+    try:
+        _pos = int(float(str(_pos).replace("%", "").strip()))   # "40%" → 40, None → 0
+    except (TypeError, ValueError):
+        _pos = 0
+    decision["position_size_pct"] = _pos          # normalize ALWAYS (deep-diagnosis fix)
+    if _pos > _hi:                      # risk cap — upper side hard clamp
+        decision["position_size_pct"] = _hi
+        decision["battle_notes"] = (
+            (decision.get("battle_notes") or "") +
+            f" | ⚠️ REGIME CLAMP: PM ne {_pos}% bola, {regime['regime']} "
+            f"band {_lo}-{_hi}% hai → {_hi}% pe clamp kiya (code discipline).")
+    # Action-label consistency (TradeHive: clamp ke baad action re-derive hota hai)
+    if decision.get("decision") == "BUY" and int(decision.get("position_size_pct") or 0) == 0:
+        decision["decision"] = "HOLD"
+        if str(decision.get("rating", "")).strip().lower() in ("buy", "strong buy"):
+            decision["rating"] = "Hold"
+        decision["battle_notes"] = (
+            (decision.get("battle_notes") or "") +
+            f" | 🚫 REGIME LOCK: {regime['regime']} band {_lo}-{_hi}% — BUY ka koi "
+            "allowed position nahi bacha, isliye decision HOLD/WAIT lock kiya gaya "
+            "(fresh entry abhi nahi).")
+    decision["regime"] = regime["regime"]
+    decision["regime_band"] = f"{_lo}-{_hi}%"
+    return decision
 
 
 def _parse_decision(raw: str) -> dict:
@@ -367,6 +495,10 @@ def _parse_decision(raw: str) -> dict:
         kr = [str(x) for x in kr][:6]
     else:
         kr = []
+    kr = [x for x in kr
+          if x.strip()
+          and not _NEG_ENTRY_FULL_RE.match(x.strip())
+          and not _NEG_ENTRY_SUB_RE.search(x.strip())]
     d["key_risks"] = kr
     # position_size_pct: safe int coercion (strings like "3", "3%", None)
     try:
